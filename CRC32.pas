@@ -2,18 +2,14 @@
 
 CRC32 Calculation
 
-©František Milt 2015-01-09
+©František Milt 2015-02-13
 
-Version 1.3.2
+Version 1.3.3
 
 Polynomial 0x04c11db7
 
 ===============================================================================}
 unit CRC32;
-
-{$IFDEF x64}
-  {$DEFINE PurePascal}
-{$ENDIF}
 
 {$DEFINE LargeBuffer}
 {.$DEFINE UseStringStream}
@@ -34,11 +30,12 @@ Function CRC32ToStr(CRC32: TCRC32): String;
 Function StrToCRC32(const Str: String): TCRC32;
 Function SameCRC32(A,B: TCRC32): Boolean;
 
-Function BufferCRC32(CRC32: TCRC32; const Buffer; Size: Integer): TCRC32; register; overload;
+Function BufferCRC32(CRC32: TCRC32; const Buffer; Size: Integer): TCRC32; overload;
 Function BufferCRC32(const Buffer; Size: Integer): TCRC32; overload;
 
-Function StringCRC32(const Text: AnsiString): TCRC32; overload;
-Function StringCRC32(const Text: WideString): TCRC32; overload;
+Function AnsiStringCRC32(const Text: AnsiString): TCRC32;
+Function WideStringCRC32(const Text: WideString): TCRC32;
+Function StringCRC32(const Text: String): TCRC32;
 
 Function StreamCRC32(InputStream: TStream): TCRC32;
 Function FileCRC32(const FileName: String): TCRC32;
@@ -124,7 +121,7 @@ end;
 
 //==============================================================================
 
-Function BufferCRC32(CRC32: TCRC32; const Buffer; Size: Integer): TCRC32; register; {$IFNDEF PurePascal}assembler;{$ENDIF}
+Function _BufferCRC32(CRC32: TCRC32; const Buffer; Size: Integer{$IFDEF x64}; {%H-}CRCTablePtr: Pointer{$ENDIF}): TCRC32; register; {$IFNDEF PurePascal}assembler;{$ENDIF}
 {$IFDEF PurePascal}
 var
   i:    Integer;
@@ -142,6 +139,39 @@ end;
 {$ELSE}
 {$IFDEF FPC}{$ASMMODE intel}{$ENDIF}
 asm
+{$IFDEF x64}
+{******************************************************************************}
+{     Register    Content                                                      }
+{     RCX         old CRC32 value                                              }
+{     RDX         pointer to Buffer                                            }
+{     R8          Size value                                                   }
+{     R9          Pointer to CRC table                                         }
+{                                                                              }
+{     Registers used in routine:                                               }
+{     RAX (contains result), RCX, RDX, R8, R9                                  }
+{******************************************************************************}
+
+              CMP   R8, 0         // check whether size is larger than zero...
+              JNG   @RoutineEnd   // ...end calculation when isn't
+
+              XCHG  R8D, ECX      // RCX now contains size, R8 old CRC32 value
+              NOT   R8D
+
+{*** Main calculation loop, executed ECX times ********************************}
+@MainLoop:    MOV   AL,  byte ptr [RDX]
+              XOR   AL,  R8B
+              AND   RAX, $00000000000000FF
+              MOV   EAX, dword ptr [RAX * 4 + R9]
+              SHR   R8D, 8
+              XOR   R8D, EAX
+              INC   RDX
+              LOOP  @MainLoop
+
+              NOT   R8D
+
+@RoutineEnd:  MOV   EAX, R8D
+              MOV   Result, EAX
+{$ELSE}
 {******************************************************************************}
 {     Register    Content                                                      }
 {     EAX         old CRC32 value, Result                                      }
@@ -160,10 +190,10 @@ asm
                 NOT   EAX
 
 {*** Main calculation loop, executed ECX times ********************************}
-  @MainLoop:    MOV   DL,  [EBX]
+  @MainLoop:    MOV   DL,  byte ptr [EBX]
                 XOR   DL,  AL
                 AND   EDX, $000000FF
-                MOV   EDX, [EDX * 4 + CRCTable]
+                MOV   EDX, dword ptr [EDX * 4 + CRCTable]
                 SHR   EAX, 8
                 XOR   EAX, EDX
                 INC   EBX
@@ -173,8 +203,16 @@ asm
                 POP   EBX           // restore EBX register
 
   @RoutineEnd:  MOV   Result, EAX
+{$ENDIF}
 end;
 {$ENDIF}
+
+//------------------------------------------------------------------------------
+
+Function BufferCRC32(CRC32: TCRC32; const Buffer; Size: Integer): TCRC32;
+begin
+Result := _BufferCRC32(CRC32,Buffer,Size{$IFDEF x64},@CRCTable{$ENDIF});
+end;
 
 //------------------------------------------------------------------------------
 
@@ -185,7 +223,7 @@ end;
 
 //==============================================================================
 
-Function StringCRC32(const Text: AnsiString): TCRC32;
+Function AnsiStringCRC32(const Text: AnsiString): TCRC32;
 {$IFDEF UseStringStream}
 var
   StringStream: TStringStream;
@@ -205,7 +243,7 @@ end;
 
 //------------------------------------------------------------------------------
 
-Function StringCRC32(const Text: WideString): TCRC32;
+Function WideStringCRC32(const Text: WideString): TCRC32;
 {$IFDEF UseStringStream}
 var
   StringStream: TStringStream;
@@ -220,6 +258,26 @@ end;
 {$ELSE}
 begin
 Result := BufferCRC32(0,PWideChar(Text)^,Length(Text) * SizeOf(WideChar));
+end;
+{$ENDIF}
+
+//------------------------------------------------------------------------------
+
+Function StringCRC32(const Text: String): TCRC32;
+{$IFDEF UseStringStream}
+var
+  StringStream: TStringStream;
+begin
+StringStream := TStringStream.Create(Text);
+try
+  Result := StreamCRC32(StringStream);
+finally
+  StringStream.Free;
+end;
+end;
+{$ELSE}
+begin
+Result := BufferCRC32(0,PChar(Text)^,Length(Text) * SizeOf(Char));
 end;
 {$ENDIF}
 
