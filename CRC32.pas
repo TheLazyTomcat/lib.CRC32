@@ -151,6 +151,7 @@ asm
 {     RAX (contains result), RCX, RDX, R8, R9                                  }
 {******************************************************************************}
 
+              MOV   EAX, RCX
               CMP   R8, 0         // check whether size is larger than zero...
               JNG   @RoutineEnd   // ...end calculation when isn't
 
@@ -168,9 +169,9 @@ asm
               LOOP  @MainLoop
 
               NOT   R8D
-
-@RoutineEnd:  MOV   EAX, R8D
-              MOV   Result, EAX
+              MOV   EAX, R8D
+              
+@RoutineEnd:  MOV   Result, EAX
 {$ELSE}
 {******************************************************************************}
 {     Register    Content                                                      }
