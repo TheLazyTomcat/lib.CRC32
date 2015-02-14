@@ -2,9 +2,9 @@
 
 CRC32 Calculation
 
-©František Milt 2015-02-13
+©František Milt 2015-02-14
 
-Version 1.3.3
+Version 1.3.4
 
 Polynomial 0x04c11db7
 
@@ -28,6 +28,8 @@ const
 
 Function CRC32ToStr(CRC32: TCRC32): String;
 Function StrToCRC32(const Str: String): TCRC32;
+Function TryStrToCRC32(const Str: String; out CRC32: TCRC32): Boolean;
+Function StrToCRC32Def(const Str: String; Default: TCRC32): TCRC32;
 Function SameCRC32(A,B: TCRC32): Boolean;
 
 Function BufferCRC32(CRC32: TCRC32; const Buffer; Size: Integer): TCRC32; overload;
@@ -110,6 +112,26 @@ If Length(Str) > 0 then
       Result := TCRC32(StrToInt('$' + Str));
   end
 else Result := InitialCRC32;
+end;
+
+//------------------------------------------------------------------------------
+
+Function TryStrToCRC32(const Str: String; out CRC32: TCRC32): Boolean;
+begin
+try
+  CRC32 := StrToCRC32(Str);
+  Result := True;
+except
+  Result := False;
+end;
+end;
+
+//------------------------------------------------------------------------------
+
+Function StrToCRC32Def(const Str: String; Default: TCRC32): TCRC32;
+begin
+If not TryStrToCRC32(Str,Result) then
+  Result := Default;
 end;
 
 //------------------------------------------------------------------------------
