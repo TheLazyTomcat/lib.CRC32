@@ -143,7 +143,7 @@ end;
 
 //==============================================================================
 
-Function _BufferCRC32(CRC32: TCRC32; const Buffer; Size: Integer{$IFDEF x64}; {%H-}CRCTablePtr: Pointer{$ENDIF}): TCRC32; register; {$IFNDEF PurePascal}assembler;{$ENDIF}
+Function _BufferCRC32(CRC32: TCRC32; const Buffer; Size: Integer{$IFDEF x64}; CRCTablePtr: Pointer{$ENDIF}): TCRC32; register; {$IFNDEF PurePascal}assembler;{$ENDIF}
 {$IFDEF PurePascal}
 var
   i:    Integer;
@@ -311,12 +311,12 @@ var
   Buffer:     Pointer;
   BytesRead:  Integer;
 begin
-Result := InitialCRC32;
 If Assigned(InputStream) then
   begin
-    InputStream.Position := 0;
     GetMem(Buffer,cBufferSize);
     try
+      Result := InitialCRC32;
+      InputStream.Position := 0;      
       repeat
         BytesRead := InputStream.Read(Buffer^,cBufferSize);
         Result := BufferCRC32(Result,Buffer^,BytesRead);
@@ -324,7 +324,8 @@ If Assigned(InputStream) then
     finally
       FreeMem(Buffer,cBufferSize);
     end;
-  end;
+  end
+else raise Exception.Create('StreamCRC32: Stream is not assigned.');
 end;
 
 //------------------------------------------------------------------------------
