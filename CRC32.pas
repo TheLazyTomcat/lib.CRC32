@@ -7,13 +7,13 @@
 -------------------------------------------------------------------------------}
 {===============================================================================
 
-CRC32 Calculation
+  CRC32 Calculation
 
-©František Milt 2015-02-14
+  ©František Milt 2015-03-13
 
-Version 1.3.4
+  Version 1.4
 
-Polynomial 0x04c11db7
+  Polynomial 0x04c11db7
 
 ===============================================================================}
 unit CRC32;
@@ -49,10 +49,27 @@ Function StringCRC32(const Text: String): TCRC32;
 Function StreamCRC32(InputStream: TStream): TCRC32;
 Function FileCRC32(const FileName: String): TCRC32;
 
+//------------------------------------------------------------------------------
+
+type
+  TCRC32Context = Pointer;
+
+Function CRC32_Init: TCRC32Context;
+procedure CRC32_Update(Context: TCRC32Context; const Buffer; Size: Integer);
+Function CRC32_Final(var Context: TCRC32Context; const Buffer; Size: Integer): TCRC32; overload;
+Function CRC32_Final(var Context: TCRC32Context): TCRC32; overload;
+Function CRC32_Hash(const Buffer; Size: Integer): TCRC32;
+
 implementation
 
 uses
   SysUtils;
+
+type
+  TCRC32Context_Internal = record
+    CRC32: TCRC32;
+  end;
+  PCRC32Context_Internal = ^TCRC32Context_Internal;
 
 const
 {$IFDEF LargeBuffer}
@@ -347,6 +364,44 @@ try
 finally
   FileStream.Free;
 end;
+end;
+
+//==============================================================================
+
+Function CRC32_Init: TCRC32Context;
+begin
+Result := AllocMem(SizeOf(TCRC32Context_Internal));
+PCRC32Context_Internal(Result)^.CRC32 := InitialCRC32;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure CRC32_Update(Context: TCRC32Context; const Buffer; Size: Integer);
+begin
+PCRC32Context_Internal(Context)^.CRC32 := BufferCRC32(PCRC32Context_Internal(Context)^.CRC32,Buffer,Size);
+end;
+
+//------------------------------------------------------------------------------
+
+Function CRC32_Final(var Context: TCRC32Context; const Buffer; Size: Integer): TCRC32;
+begin
+CRC32_Update(Context,Buffer,Size);
+Result := CRC32_Final(Context);
+end;
+
+//------------------------------------------------------------------------------
+
+Function CRC32_Final(var Context: TCRC32Context): TCRC32;
+begin
+Result := PCRC32Context_Internal(Context)^.CRC32;
+FreeMem(Context,SizeOf(TCRC32Context_Internal));
+end;
+
+//------------------------------------------------------------------------------
+
+Function CRC32_Hash(const Buffer; Size: Integer): TCRC32;
+begin
+Result := BufferCRC32(Buffer,Size);
 end;
 
 end.
