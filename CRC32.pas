@@ -172,16 +172,11 @@ end;
 Function _BufferCRC32(CRC32: TCRC32; const Buffer; Size: TSize{$IFDEF x64}; CRCTablePtr: Pointer{$ENDIF}): TCRC32; register; {$IFNDEF PurePascal}assembler;{$ENDIF}
 {$IFDEF PurePascal}
 var
-  i:    Integer;
-  Buff: PByteArray;
+  i:  Integer;
 begin
 Result := not CRC32;
-If Size > 0 then
-  begin
-    Buff := @Buffer;
-    For i := 0 to Pred(Size) do
-      Result := CRCTable[Byte(Result xor TCRC32(Buff^[i]))] xor (Result shr 8);
-  end;
+For i := 0 to Pred(Size) do
+  Result := CRCTable[Byte(Result xor TCRC32(TByteArray(Buffer)[i]))] xor (Result shr 8);
 Result := not Result;
 end;
 {$ELSE}
