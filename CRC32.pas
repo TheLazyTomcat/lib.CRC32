@@ -11,7 +11,7 @@
 
   ©František Milt 2015-03-14
 
-  Version 1.4.2
+  Version 1.4.3
 
   Polynomial 0x04c11db7
 
@@ -49,11 +49,11 @@ Function BufferCRC32(CRC32: TCRC32; const Buffer; Size: TSize): TCRC32; overload
 
 Function BufferCRC32(const Buffer; Size: TSize): TCRC32; overload;
 
-Function AnsiStringCRC32(const Text: AnsiString): TCRC32;
-Function WideStringCRC32(const Text: WideString): TCRC32;
-Function StringCRC32(const Text: String): TCRC32;
+Function AnsiStringCRC32(const Str: AnsiString): TCRC32;
+Function WideStringCRC32(const Str: WideString): TCRC32;
+Function StringCRC32(const Str: String): TCRC32;
 
-Function StreamCRC32(InputStream: TStream; Count: Int64 = -1): TCRC32;
+Function StreamCRC32(Stream: TStream; Count: Int64 = -1): TCRC32;
 Function FileCRC32(const FileName: String): TCRC32;
 
 //------------------------------------------------------------------------------
@@ -272,12 +272,12 @@ end;
 
 //==============================================================================
 
-Function AnsiStringCRC32(const Text: AnsiString): TCRC32;
+Function AnsiStringCRC32(const Str: AnsiString): TCRC32;
 {$IFDEF UseStringStream}
 var
   StringStream: TStringStream;
 begin
-StringStream := TStringStream.Create(Text);
+StringStream := TStringStream.Create(Str);
 try
   Result := StreamCRC32(StringStream);
 finally
@@ -286,13 +286,13 @@ end;
 end;
 {$ELSE}
 begin
-Result := BufferCRC32(PAnsiChar(Text)^,Length(Text) * SizeOf(AnsiChar));
+Result := BufferCRC32(PAnsiChar(Str)^,Length(Str) * SizeOf(AnsiChar));
 end;
 {$ENDIF}
 
 //------------------------------------------------------------------------------
 
-Function WideStringCRC32(const Text: WideString): TCRC32;
+Function WideStringCRC32(const Str: WideString): TCRC32;
 {$IFDEF UseStringStream}
 var
   StringStream: TStringStream;
@@ -306,13 +306,13 @@ end;
 end;
 {$ELSE}
 begin
-Result := BufferCRC32(PWideChar(Text)^,Length(Text) * SizeOf(WideChar));
+Result := BufferCRC32(PWideChar(Str)^,Length(Str) * SizeOf(WideChar));
 end;
 {$ENDIF}
 
 //------------------------------------------------------------------------------
 
-Function StringCRC32(const Text: String): TCRC32;
+Function StringCRC32(const Str: String): TCRC32;
 {$IFDEF UseStringStream}
 var
   StringStream: TStringStream;
@@ -326,13 +326,13 @@ end;
 end;
 {$ELSE}
 begin
-Result := BufferCRC32(PChar(Text)^,Length(Text) * SizeOf(Char));
+Result := BufferCRC32(PChar(Str)^,Length(Str) * SizeOf(Char));
 end;
 {$ENDIF}
 
 //==============================================================================
 
-Function StreamCRC32(InputStream: TStream; Count: Int64 = -1): TCRC32;
+Function StreamCRC32(Stream: TStream; Count: Int64 = -1): TCRC32;
 var
   Buffer:     Pointer;
   BytesRead:  Integer;
@@ -344,20 +344,20 @@ var
   end;
 
 begin
-If Assigned(InputStream) then
+If Assigned(Stream) then
   begin
     If Count = 0 then
-      Count := InputStream.Size - InputStream.Position;
+      Count := Stream.Size - Stream.Position;
     If Count < 0 then
       begin
-        InputStream.Position := 0;
-        Count := InputStream.Size;
+        Stream.Position := 0;
+        Count := Stream.Size;
       end;
     GetMem(Buffer,BufferSize);
     try
       Result := InitialCRC32;
       repeat
-        BytesRead := InputStream.Read(Buffer^,Min(BufferSize,Count));
+        BytesRead := Stream.Read(Buffer^,Min(BufferSize,Count));
         Result := BufferCRC32(Result,Buffer^,BytesRead);
         Dec(Count,BytesRead);
       until BytesRead < BufferSize;
