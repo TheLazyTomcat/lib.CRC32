@@ -199,27 +199,27 @@ asm
 {     RAX (contains result), RCX, RDX, R8, R9                                  }
 {******************************************************************************}
 
-              MOV   EAX, RCX
-              CMP   R8, 0         // check whether size is larger than zero...
-              JNG   @RoutineEnd   // ...end calculation when isn't
+                MOV   EAX, RCX
+                CMP   R8, 0         // check whether size is larger than zero...
+                JNG   @RoutineEnd   // ...end calculation when isn't
 
-              XCHG  R8, RCX       // RCX now contains size, R8 old CRC32 value
-              NOT   R8D
+                XCHG  R8, RCX       // RCX now contains size, R8 old CRC32 value
+                NOT   R8D
 
 {*** Main calculation loop, executed ECX times ********************************}
-@MainLoop:    MOV   AL,  byte ptr [RDX]
-              XOR   AL,  R8B
-              AND   RAX, $00000000000000FF
-              MOV   EAX, dword ptr [RAX * 4 + R9]
-              SHR   R8D, 8
-              XOR   R8D, EAX
-              INC   RDX
-              LOOP  @MainLoop
+  @MainLoop:    MOV   AL,  byte ptr [RDX]
+                XOR   AL,  R8B
+                AND   RAX, $00000000000000FF
+                MOV   EAX, dword ptr [RAX * 4 + R9]
+                SHR   R8D, 8
+                XOR   R8D, EAX
+                INC   RDX
+                LOOP  @MainLoop
 
-              NOT   R8D
-              MOV   EAX, R8D
-              
-@RoutineEnd:  MOV   Result, EAX
+                NOT   R8D
+                MOV   EAX, R8D
+
+  @RoutineEnd:  MOV   Result, EAX
 {$ELSE}
 {******************************************************************************}
 {     Register    Content                                                      }
