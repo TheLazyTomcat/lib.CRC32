@@ -9,7 +9,7 @@
 
   CRC32 Calculation
 
-  ©2015 František Milt
+  ©František Milt 2015-04-26
 
   Version 1.4.4
 
