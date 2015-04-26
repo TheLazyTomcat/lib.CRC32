@@ -9,9 +9,9 @@
 
   CRC32 Calculation
 
-  ©František Milt 2015-04-26
+  ©František Milt 2015-04-27
 
-  Version 1.4.4
+  Version 1.4.5
 
   Polynomial 0x04c11db7
 
@@ -169,15 +169,22 @@ end;
 
 //==============================================================================
 
-Function _BufferCRC32(CRC32: TCRC32; const Buffer; Size: TSize{$IFDEF x64}; CRCTablePtr: Pointer{$ENDIF}): TCRC32; register; {$IFNDEF PurePascal}assembler;{$ENDIF}
+Function _BufferCRC32(CRC32: TCRC32; const Buffer; Size: TSize{$IF DEFINED(x64) AND NOT DEFINED(PurePascal)}; CRCTablePtr: Pointer{$IFEND}): TCRC32; register; {$IFNDEF PurePascal}assembler;{$ENDIF}
 {$IFDEF PurePascal}
 var
-  i:  TSize;
+  i:    TSize;
+  Buff: PByte;
 begin
 Result := not CRC32;
 If Size > 0 then
-  For i := 0 to Pred(Size) do
-    Result := CRCTable[Byte(Result xor TCRC32(TByteArray(Buffer)[i]))] xor (Result shr 8);
+  begin
+    Buff := @Buffer;
+    For i := 0 to Pred(Size) do
+      begin
+        Result := CRCTable[Byte(Result xor TCRC32(Buff^))] xor (Result shr 8);
+        Inc(Buff);
+      end;
+  end;
 Result := not Result;
 end;
 {$ELSE}
@@ -256,7 +263,7 @@ end;
 
 Function BufferCRC32(CRC32: TCRC32; const Buffer; Size: TSize): TCRC32;
 begin
-Result := _BufferCRC32(CRC32,Buffer,Size{$IFDEF x64},@CRCTable{$ENDIF});
+Result := _BufferCRC32(CRC32,Buffer,Size{$IF DEFINED(x64) AND NOT DEFINED(PurePascal)},@CRCTable{$IFEND});
 end;
 
 //==============================================================================
