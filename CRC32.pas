@@ -9,9 +9,9 @@
 
   CRC32 Calculation
 
-  ©František Milt 2015-03-14
+  ©2015 František Milt
 
-  Version 1.4.3
+  Version 1.4.4
 
   Polynomial 0x04c11db7
 
@@ -172,11 +172,12 @@ end;
 Function _BufferCRC32(CRC32: TCRC32; const Buffer; Size: TSize{$IFDEF x64}; CRCTablePtr: Pointer{$ENDIF}): TCRC32; register; {$IFNDEF PurePascal}assembler;{$ENDIF}
 {$IFDEF PurePascal}
 var
-  i:  Integer;
+  i:  TSize;
 begin
 Result := not CRC32;
-For i := 0 to Pred(Size) do
-  Result := CRCTable[Byte(Result xor TCRC32(TByteArray(Buffer)[i]))] xor (Result shr 8);
+If Size > 0 then
+  For i := 0 to Pred(Size) do
+    Result := CRCTable[Byte(Result xor TCRC32(TByteArray(Buffer)[i]))] xor (Result shr 8);
 Result := not Result;
 end;
 {$ELSE}
@@ -196,7 +197,7 @@ asm
 
                 MOV   EAX, RCX
                 CMP   R8, 0         // check whether size is larger than zero...
-                JNG   @RoutineEnd   // ...end calculation when isn't
+                JNA   @RoutineEnd   // ...end calculation when isn't
 
                 XCHG  R8, RCX       // RCX now contains size, R8 old CRC32 value
                 NOT   R8D
@@ -227,7 +228,7 @@ asm
 {******************************************************************************}
 
                 CMP   ECX, 0        // check whether size is larger than zero...
-                JNG   @RoutineEnd   // ...end calculation when isn't
+                JNA   @RoutineEnd   // ...end calculation when isn't
 
                 PUSH  EBX           // EBX register value must be preserved
                 MOV   EBX, EDX      // EBX now contains pointer to Buffer
