@@ -9,9 +9,9 @@
 
   CRC32 Calculation
 
-  ©František Milt 2015-04-27
+  ©František Milt 2015-04-29
 
-  Version 1.4.5
+  Version 1.4.6
 
   Polynomial 0x04c11db7
 
@@ -37,7 +37,7 @@ type
   PCRC32 = ^TCRC32;
 
 const
-  InitialCRC32 = $00000000;  
+  InitialCRC32 = TCRC32($00000000);  
 
 Function CRC32ToStr(CRC32: TCRC32): String;
 Function StrToCRC32(const Str: String): TCRC32;
@@ -300,7 +300,7 @@ Function WideStringCRC32(const Str: WideString): TCRC32;
 var
   StringStream: TStringStream;
 begin
-StringStream := TStringStream.Create(Text);
+StringStream := TStringStream.Create(Str);
 try
   Result := StreamCRC32(StringStream);
 finally
@@ -320,7 +320,7 @@ Function StringCRC32(const Str: String): TCRC32;
 var
   StringStream: TStringStream;
 begin
-StringStream := TStringStream.Create(Text);
+StringStream := TStringStream.Create(Str);
 try
   Result := StreamCRC32(StringStream);
 finally
