@@ -9,9 +9,9 @@
 
   CRC32 Calculation
 
-  ©František Milt 2015-11-09
+  ©František Milt 2016-03-01
 
-  Version 1.4.7
+  Version 1.4.8
 
   Polynomial 0x04c11db7
 
