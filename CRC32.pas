@@ -80,7 +80,14 @@ Function CRC32_Hash(const Buffer; Size: TMemSize): TCRC32;
 implementation
 
 uses
-  SysUtils;
+  SysUtils
+  {$IF Defined(FPC) and not Defined(Unicode)}
+  (*
+    If compiler throws error that LazUTF8 unit cannot be found, you have to
+    add LazUtils to required packages (Project > Project Inspector).
+  *)
+  , LazUTF8
+  {$IFEND};
 
 const
 {$IFDEF LargeBuffer}
@@ -343,7 +350,11 @@ Function FileCRC32(const FileName: String): TCRC32;
 var
   FileStream: TFileStream;
 begin
+{$IF Defined(FPC) and not Defined(Unicode)}
+FileStream := TFileStream.Create(UTF8ToSys(FileName), fmOpenRead or fmShareDenyWrite);
+{$ELSE}
 FileStream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
+{$IFEND}
 try
   Result := StreamCRC32(FileStream);
 finally
