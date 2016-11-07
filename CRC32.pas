@@ -37,6 +37,12 @@ unit CRC32;
   {$ASMMODE Intel}
 {$IFEND}
 
+{$IFDEF FPC}
+  {$MODE ObjFPC}{$H+}
+  // Activate symbol BARE_FPC if you want to compile this unit outside of Lazarus.
+  {.$DEFINE BARE_FPC}
+{$ENDIF}
+
 interface
 
 uses
@@ -81,7 +87,7 @@ implementation
 
 uses
   SysUtils
-  {$IF Defined(FPC) and not Defined(Unicode)}
+  {$IF Defined(FPC) and not Defined(Unicode) and not Defined(BARE_FPC)}
   (*
     If compiler throws error that LazUTF8 unit cannot be found, you have to
     add LazUtils to required packages (Project > Project Inspector).
@@ -350,7 +356,7 @@ Function FileCRC32(const FileName: String): TCRC32;
 var
   FileStream: TFileStream;
 begin
-{$IF Defined(FPC) and not Defined(Unicode)}
+{$IF Defined(FPC) and not Defined(Unicode) and not Defined(BARE_FPC)}
 FileStream := TFileStream.Create(UTF8ToSys(FileName), fmOpenRead or fmShareDenyWrite);
 {$ELSE}
 FileStream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
