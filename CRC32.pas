@@ -15,6 +15,9 @@
 
   Polynomial 0x04c11db7
 
+  Dependencies:
+    AuxTypes - github.com/ncs-sniper/Lib.AuxTypes
+
 ===============================================================================}
 unit CRC32;
 
