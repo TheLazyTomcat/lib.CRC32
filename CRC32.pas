@@ -9,9 +9,9 @@
 
   CRC32 Calculation
 
-  ©František Milt 2016-03-01
+  ©František Milt 2016-12-18
 
-  Version 1.4.8
+  Version 1.4.9
 
   Polynomial 0x04c11db7
 
@@ -209,9 +209,9 @@ asm
 {     RAX (contains result), RCX, RDX, R8, R9                                  }
 {******************************************************************************}
 
-                MOV   EAX, RCX
-                CMP   R8, 0         // check whether size is larger than zero...
-                JNA   @RoutineEnd   // ...end calculation when isn't
+                MOV   EAX, ECX
+                CMP   R8,  0        // check whether size is zero...
+                JZ    @RoutineEnd   // ...end calculation when it is
 
                 XCHG  R8, RCX       // RCX now contains size, R8 old CRC32 value
                 NOT   R8D
@@ -224,7 +224,9 @@ asm
                 SHR   R8D, 8
                 XOR   R8D, EAX
                 INC   RDX
-                LOOP  @MainLoop
+
+                DEC   RCX
+                JNZ   @MainLoop
 
                 NOT   R8D
                 MOV   EAX, R8D
@@ -241,8 +243,8 @@ asm
 {     EAX (contains result), EBX (value preserved), ECX, EDX                   }
 {******************************************************************************}
 
-                CMP   ECX, 0        // check whether size is larger than zero...
-                JNA   @RoutineEnd   // ...end calculation when isn't
+                CMP   ECX, 0        // check whether size is zero...
+                JZ    @RoutineEnd   // ...end calculation when it is
 
                 PUSH  EBX           // EBX register value must be preserved
                 MOV   EBX, EDX      // EBX now contains pointer to Buffer
@@ -256,7 +258,9 @@ asm
                 SHR   EAX, 8
                 XOR   EAX, EDX
                 INC   EBX
-                LOOP  @MainLoop
+
+                DEC   ECX
+                JNZ   @MainLoop
 
                 NOT   EAX
                 POP   EBX           // restore EBX register
