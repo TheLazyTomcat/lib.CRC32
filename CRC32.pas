@@ -9,9 +9,9 @@
 
   CRC32 Calculation
 
-  ©František Milt 2017-07-18
+  ©František Milt 2018-10-21
 
-  Version 1.4.10
+  Version 1.4.11
 
   Polynomial 0x04c11db7
 
@@ -22,8 +22,6 @@
 ===============================================================================}
 unit CRC32;
 
-{$DEFINE LargeBuffer}
-
 {$IF defined(CPUX86_64) or defined(CPUX64)}
   {$DEFINE x64}
   {$IF defined(WINDOWS) or defined(MSWINDOWS)}
@@ -33,17 +31,26 @@ unit CRC32;
   {$IFEND}
 {$ELSEIF defined(CPU386)}
   {$DEFINE x86}
-{$ELSE}    
+{$ELSE}
   {$DEFINE PurePascal}
-{$IFEND}
-
-{$IF defined(FPC) and not defined(PurePascal)}
-  {$ASMMODE Intel}
 {$IFEND}
 
 {$IFDEF FPC}
   {$MODE ObjFPC}{$H+}
+  {$INLINE ON}
+  {$DEFINE CanInline}
+  {$IFNDEF PurePascal}
+    {$ASMMODE Intel}
+  {$ENDIF}
+{$ELSE}
+  {$IF CompilerVersion >= 17 then}  // Delphi 2005+
+    {$DEFINE CanInline}
+  {$ELSE}
+    {$UNDEF CanInline}
+  {$IFEND}
 {$ENDIF}
+
+{$DEFINE LargeBuffer}
 
 interface
 
@@ -57,19 +64,21 @@ type
 const
   InitialCRC32 = TCRC32($00000000);  
 
-Function CRC32ToStr(CRC32: TCRC32): String;
+Function CRC32ToStr(CRC32: TCRC32): String;{$IFDEF CanInline} inline; {$ENDIF}
 Function StrToCRC32(const Str: String): TCRC32;
 Function TryStrToCRC32(const Str: String; out CRC32: TCRC32): Boolean;
 Function StrToCRC32Def(const Str: String; Default: TCRC32): TCRC32;
-Function SameCRC32(A,B: TCRC32): Boolean;
+
+Function CompareCRC32(A,B: TCRC32): Integer;
+Function SameCRC32(A,B: TCRC32): Boolean;{$IFDEF CanInline} inline; {$ENDIF}
 
 Function BufferCRC32(CRC32: TCRC32; const Buffer; Size: TMemSize): TCRC32; overload;
 
 Function BufferCRC32(const Buffer; Size: TMemSize): TCRC32; overload;
 
-Function AnsiStringCRC32(const Str: AnsiString): TCRC32;
-Function WideStringCRC32(const Str: WideString): TCRC32;
-Function StringCRC32(const Str: String): TCRC32;
+Function AnsiStringCRC32(const Str: AnsiString): TCRC32;{$IFDEF CanInline} inline; {$ENDIF}
+Function WideStringCRC32(const Str: WideString): TCRC32;{$IFDEF CanInline} inline; {$ENDIF}
+Function StringCRC32(const Str: String): TCRC32;{$IFDEF CanInline} inline; {$ENDIF}
 
 Function StreamCRC32(Stream: TStream; Count: Int64 = -1): TCRC32;
 Function FileCRC32(const FileName: String): TCRC32;
@@ -176,6 +185,18 @@ Function StrToCRC32Def(const Str: String; Default: TCRC32): TCRC32;
 begin
 If not TryStrToCRC32(Str,Result) then
   Result := Default;
+end;
+
+//------------------------------------------------------------------------------
+
+Function CompareCRC32(A,B: TCRC32): Integer;
+begin
+If UInt32(A) > UInt32(B) then
+  Result := -1
+else If UInt32(A) < UInt32(B) then
+  Result := 1
+else
+  Result := 0;
 end;
 
 //------------------------------------------------------------------------------
