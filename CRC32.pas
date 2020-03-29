@@ -9,9 +9,9 @@
 
   CRC32 calculation (polynomial 0x04C11DB7)
 
-  Version 1.5 (2020-03-23)
+  Version 1.5.1 (2020-03-29)
 
-  Last change 2020-03-23
+  Last change 2020-03-29
 
   ©2011-2020 František Milt
 
@@ -555,8 +555,7 @@ end;
 
 constructor TCRC32Hash.CreateAndInitFrom(Hash: THashBase);
 begin
-Create;
-Init;
+CreateAndInit;
 If Hash is TCRC32Hash then
   fCRC32 := TCRC32Hash(Hash).CRC32Sys
 else
@@ -567,8 +566,7 @@ end;
 
 constructor TCRC32Hash.CreateAndInitFrom(Hash: TCRC32);
 begin
-Create;
-Init;
+CreateAndInit;
 fCRC32 := CRC32ToSys(Hash);
 end;
 
@@ -880,8 +878,7 @@ Function CRC32_Init: TCRC32Context;
 var
   Temp: TCRC32Hash;
 begin
-Temp := TCRC32Hash.Create;
-Temp.Init;
+Temp := TCRC32Hash.CreateAndInit;
 Result := TCRC32Context(Temp);
 end;
 
