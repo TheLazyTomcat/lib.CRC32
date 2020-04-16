@@ -29,7 +29,7 @@
 
   Version 1.6 beta (2020-04-05)
 
-  Last change 2020-04-05
+  Last change 2020-04-17
 
   ©2011-2020 František Milt
 
@@ -692,7 +692,7 @@ CreateAndInit;
 If Hash is TCRC32Hash then
   fCRC32Value := TCRC32Hash(Hash).CRC32Sys
 else
-  raise ECRC32IncompatibleClass.CreateFmt('TCRC32Hash.ProcessBuffer: Incompatible class (%s).',[Hash.ClassName]);
+  raise ECRC32IncompatibleClass.CreateFmt('TCRC32Hash.CreateAndInitFrom: Incompatible class (%s).',[Hash.ClassName]);
 end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
