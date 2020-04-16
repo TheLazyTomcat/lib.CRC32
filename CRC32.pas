@@ -423,18 +423,20 @@ end;
 
 Function TCRC32BaseHash.GetHashImplementation: THashImplementation;
 begin
+// do not call inherited
 {$IFNDEF PurePascal}
 If TMethod(fProcessBuffer).Code = @TCRC32Hash.ProcessBuffer_ASM then
   Result := himAssembly
 else
 {$ENDIF}
-  Result := himPascal; 
+  Result := himPascal;
 end;
 
 //------------------------------------------------------------------------------
 
 procedure TCRC32BaseHash.SetHashImplementation(Value: THashImplementation);
 begin
+// do not call inherited
 case Value of
   himAssembly,
   himAccelerated: {$IFDEF PurePascal}
@@ -707,6 +709,7 @@ end;
 
 procedure TCRC32BaseHash.Init;
 begin
+inherited;
 fCRC32Value := CRC32ToSys(CRC32_INITVALUE);
 end;
 
@@ -751,6 +754,7 @@ end;
 
 procedure TCRC32BaseHash.FromStringDef(const Str: String; const Default: TCRC32);
 begin
+inherited FromStringDef(Str,Default);
 If not TryFromString(Str) then
   fCRC32Value := CRC32ToSys(Default);
 end;
@@ -946,6 +950,7 @@ end;
 
 Function TCRC32CHash.GetHashImplementation: THashImplementation;
 begin
+// do not call inherited
 {$IFNDEF PurePascal}
 {$IFDEF CRC32C_Accelerated}
 If TMethod(fProcessBuffer).Code = @TCRC32CHash.ProcessBuffer_ACC then
@@ -963,6 +968,7 @@ end;
 
 procedure TCRC32CHash.SetHashImplementation(Value: THashImplementation);
 begin
+// do not call inherited
 case Value of
   himAssembly:    {$IFDEF PurePascal}
                     fProcessBuffer := ProcessBuffer_PAS;
@@ -1302,6 +1308,7 @@ end;
 
 procedure TCRC32CustomHash.Init;
 begin
+inherited;
 fCRC32Value := CRC32ToSys(fCRC32Initial);
 end;
 
