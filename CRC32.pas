@@ -27,9 +27,9 @@
 
     WARNING - CRC-32C was not yet properly tested.
 
-  Version 1.6 beta (2020-04-05)
+  Version 1.6.1 beta (2020-04-22)
 
-  Last change 2020-04-17
+  Last change 2020-04-22
 
   ©2011-2020 František Milt
 
@@ -690,7 +690,7 @@ end;
 
 constructor TCRC32BaseHash.CreateAndInitFrom(Hash: THashBase);
 begin
-CreateAndInit;
+inherited CreateAndInitFrom(Hash);
 If Hash is TCRC32Hash then
   fCRC32Value := TCRC32Hash(Hash).CRC32Sys
 else
