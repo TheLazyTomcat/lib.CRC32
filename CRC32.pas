@@ -27,9 +27,9 @@
 
     WARNING - CRC-32C was not yet properly tested.
 
-  Version 1.6.1 beta (2020-04-22)
+  Version 1.6.2 beta (2020-04-26)
 
-  Last change 2020-04-22
+  Last change 2020-04-26
 
   ©2011-2020 František Milt
 
@@ -116,9 +116,8 @@ uses
 ===============================================================================}
 
 {
-  Note that type TCRC32 contains individual bytes of the checksum in the same
-  order as they are presented in its textual representation. That means most
-  significant byte first (left), least significant byte last (righ).
+  Bytes in TCRC32 are always ordered from least significant byte to most
+  significant byte (little endian).
 
   Type TCRC32Sys has no such guarantee and its endianness is system-dependent.
 
@@ -426,10 +425,10 @@ begin
 // do not call inherited
 {$IFNDEF PurePascal}
 If TMethod(fProcessBuffer).Code = @TCRC32Hash.ProcessBuffer_ASM then
-  Result := himAssembly
+  Result := hiAssembly
 else
 {$ENDIF}
-  Result := himPascal;
+  Result := hiPascal;
 end;
 
 //------------------------------------------------------------------------------
@@ -438,14 +437,14 @@ procedure TCRC32BaseHash.SetHashImplementation(Value: THashImplementation);
 begin
 // do not call inherited
 case Value of
-  himAssembly,
-  himAccelerated: {$IFDEF PurePascal}
+  hiAssembly,
+  hiAccelerated:  {$IFDEF PurePascal}
                     fProcessBuffer := ProcessBuffer_PAS;
                   {$ELSE}
                     fProcessBuffer := ProcessBuffer_ASM;
                   {$ENDIF}
 else
- {himPascal}
+ {hiPascal}
   fProcessBuffer := ProcessBuffer_PAS;
 end;
 end;
@@ -617,7 +616,7 @@ begin
 inherited;
 fCRC32Value := 0;
 InitializeTable;
-HashImplementation := himAccelerated;  // sets fProcessBuffer
+HashImplementation := hiAccelerated;  // sets fProcessBuffer
 end;
 
 //------------------------------------------------------------------------------
@@ -634,42 +633,42 @@ end;
 
 class Function TCRC32BaseHash.CRC32ToSys(CRC32: TCRC32): TCRC32Sys;
 begin
-Result := {$IFNDEF ENDIAN_BIG}SwapEndian{$ENDIF}(TCRC32Sys(CRC32));
+Result := {$IFDEF ENDIAN_BIG}SwapEndian{$ENDIF}(TCRC32Sys(CRC32));
 end;
 
 //------------------------------------------------------------------------------
 
 class Function TCRC32BaseHash.CRC32FromSys(CRC32: TCRC32Sys): TCRC32;
 begin
-Result := TCRC32({$IFNDEF ENDIAN_BIG}SwapEndian{$ENDIF}(CRC32));
+Result := TCRC32({$IFDEF ENDIAN_BIG}SwapEndian{$ENDIF}(CRC32));
 end;
 
 //------------------------------------------------------------------------------
 
 class Function TCRC32BaseHash.CRC32ToLE(CRC32: TCRC32): TCRC32;
 begin
-Result := TCRC32(SwapEndian(TCRC32Sys(CRC32)));
+Result := CRC32;
 end;
 
 //------------------------------------------------------------------------------
 
 class Function TCRC32BaseHash.CRC32ToBE(CRC32: TCRC32): TCRC32;
 begin
-Result := CRC32;
+Result := TCRC32(SwapEndian(TCRC32Sys(CRC32)));
 end;
 
 //------------------------------------------------------------------------------
 
 class Function TCRC32BaseHash.CRC32FromLE(CRC32: TCRC32): TCRC32;
 begin
-Result := TCRC32(SwapEndian(TCRC32Sys(CRC32)));
+Result := CRC32;
 end;
 
 //------------------------------------------------------------------------------
 
 class Function TCRC32BaseHash.CRC32FromBE(CRC32: TCRC32): TCRC32;
 begin
-Result := CRC32;
+Result := TCRC32(SwapEndian(TCRC32Sys(CRC32)));
 end;
 
 //------------------------------------------------------------------------------
@@ -683,7 +682,7 @@ end;
 
 class Function TCRC32BaseHash.HashEndianness: THashEndianness;
 begin
-Result := heBig;
+Result := heLittle;
 end;
 
 //------------------------------------------------------------------------------
@@ -954,14 +953,14 @@ begin
 {$IFNDEF PurePascal}
 {$IFDEF CRC32C_Accelerated}
 If TMethod(fProcessBuffer).Code = @TCRC32CHash.ProcessBuffer_ACC then
-  Result := himAccelerated
+  Result := hiAccelerated
 else
 {$ENDIF}
 If TMethod(fProcessBuffer).Code = @TCRC32CHash.ProcessBuffer_ASM then
-  Result := himAssembly
+  Result := hiAssembly
 else
 {$ENDIF}
-  Result := himPascal;
+  Result := hiPascal;
 end;
 
 //------------------------------------------------------------------------------
@@ -970,12 +969,12 @@ procedure TCRC32CHash.SetHashImplementation(Value: THashImplementation);
 begin
 // do not call inherited
 case Value of
-  himAssembly:    {$IFDEF PurePascal}
+  hiAssembly:     {$IFDEF PurePascal}
                     fProcessBuffer := ProcessBuffer_PAS;
                   {$ELSE}
                     fProcessBuffer := ProcessBuffer_ASM;
                   {$ENDIF}
-  himAccelerated: {$IFDEF PurePascal}
+  hiAccelerated:  {$IFDEF PurePascal}
                     fProcessBuffer := ProcessBuffer_PAS;
                   {$ELSE}
                   {$IFDEF CRC32C_Accelerated}
