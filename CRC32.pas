@@ -29,7 +29,7 @@
 
   Version 1.6.2 beta (2020-04-26)
 
-  Last change 2020-04-26
+  Last change 2020-05-01
 
   ©2011-2020 František Milt
 
@@ -87,11 +87,19 @@ unit CRC32;
 
 {$IFDEF FPC}
   {$MODE ObjFPC}{$H+}{$MODESWITCH CLASSICPROCVARS+}
+  {$INLINE ON}
+  {$DEFINE CanInline}
   {$DEFINE FPC_DisableWarns}
   {$MACRO ON}  
   {$IFNDEF PurePascal}
     {$ASMMODE Intel}
   {$ENDIF}
+{$ELSE}
+  {$IF CompilerVersion >= 17 then}  // Delphi 2005+
+    {$DEFINE CanInline}
+  {$ELSE}
+    {$UNDEF CanInline}
+  {$IFEND}
 {$ENDIF}
 
 {
@@ -383,7 +391,7 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function SwapEndian(Value: TCRC32): TCRC32; overload;
+Function SwapEndian(Value: TCRC32): TCRC32; overload;{$IFDEF CanInline} inline; {$ENDIF}
 begin
 Result := TCRC32(SwapEndian(TCRC32Sys(Value)));
 end;
