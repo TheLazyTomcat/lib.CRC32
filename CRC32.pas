@@ -27,9 +27,9 @@
 
     WARNING - CRC-32C was not yet properly tested.
 
-  Version 1.6.2 beta (2020-04-26)
+  Version 1.6.3 beta (2020-05-02)
 
-  Last change 2020-05-01
+  Last change 2020-05-02
 
   ©2011-2020 František Milt
 
@@ -149,7 +149,7 @@ const
   Usual initial value for CRC-32.
   Can be different for some implementations.
 }
-  CRC32_INITVALUE:  TCRC32 = ($00,$00,$00,$00);
+  InitialCRC32: TCRC32 = ($00,$00,$00,$00);
 
 {
   Polynomials for common CRC-32 implementations.
@@ -717,7 +717,7 @@ end;
 procedure TCRC32BaseHash.Init;
 begin
 inherited;
-fCRC32Value := CRC32ToSys(CRC32_INITVALUE);
+fCRC32Value := CRC32ToSys(InitialCRC32);
 end;
 
 //------------------------------------------------------------------------------
@@ -754,7 +754,7 @@ If Length(Str) > 0 then
     else
       fCRC32Value := TCRC32Sys(StrToInt('$' + Str));
   end
-else fCRC32Value := CRC32ToSys(CRC32_INITVALUE);
+else fCRC32Value := CRC32ToSys(InitialCRC32);
 end;
 
 //------------------------------------------------------------------------------
@@ -1282,7 +1282,7 @@ procedure TCRC32CustomHash.Initialize;
 begin
 fCRC32Poly := CRC32_POLYREF;
 inherited;  // calls InitializeTable, so polynomial must be set before it
-fCRC32Initial := CRC32_INITVALUE;
+fCRC32Initial := InitialCRC32;
 fPreInversion := True;
 fPostInversion := True;
 end;
