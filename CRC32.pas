@@ -29,7 +29,7 @@
 
   Version 1.6.3 beta (2020-05-02)
 
-  Last change 2020-05-02
+  Last change 2020-05-09
 
   ©2011-2020 František Milt
 
@@ -135,7 +135,7 @@ uses
   ordering, if it is not, the result will be wrong. Be carefull when using them.
 }
 type
-  TCRC32 = array[0..3] of UInt8;
+  TCRC32 = packed array[0..3] of UInt8;
   PCRC32 = ^TCRC32;
 
   TCRC32Sys = UInt32;
