@@ -22,8 +22,8 @@
     class to calculate different CRCs.
 
     For the sake of backward compatibility, there is a set of standalone
-    functions that can be used. These functions are implemented abowe TCRC32Hash
-    class and therefore are calculating CRC with a polynomial of 0x104C11DB7.
+    functions that can be used. These functions are implemented above TCRC32Hash
+    class and therefore are calculating CRC-32 with a polynomial of 0x104C11DB7.
 
     WARNING - CRC-32C was not yet properly tested.
 
@@ -146,27 +146,13 @@ type
 
 const
 {
-  Usual initial value for CRC-32.
-  Can be different for some implementations.
+  Initial value of CRC-32.
+  
+  WARNING - use only in standalone backward compatibility functions!
 }
   InitialCRC32: TCRC32 = ($00,$00,$00,$00);
 
-{
-  Polynomials for common CRC-32 implementations.
-
-  CRC32*_POLY are in original bit order with highest bit(1) omitted.
-
-  CRC32*_POLYREF are with reflected (reversed) bit order and highest bit omitted.
-
-  Full original polynomials are also provided for completeness.
-
-  Source: https://en.wikipedia.org/wiki/Cyclic_redundancy_check
-}
-  CRC32_POLY:   TCRC32Sys = $04C11DB7;  CRC32_POLYREF:   TCRC32Sys = $EDB88320;   {0x104C11DB7}
-  CRC32C_POLY:  TCRC32Sys = $1EDC6F41;  CRC32C_POLYREF:  TCRC32Sys = $82F63B78;   {0x11EDC6F41}
-  CRC32Q_POLY:  TCRC32Sys = $814141AB;  CRC32Q_POLYREF:  TCRC32Sys = $D5828281;   {0x1814141AB}
-  CRC32K_POLY:  TCRC32Sys = $741B8CD7;  CRC32K_POLYREF:  TCRC32Sys = $EB31D82E;   {0x1741B8CD7}
-  CRC32K2_POLY: TCRC32Sys = $32583499;  CRC32K2_POLYREF: TCRC32Sys = $992C1A4C;   {0x132583499}
+  ZeroCRC32: TCRC32 = (0,0,0,0);
 
 type
   ECRC32Exception = class(EHashException);
@@ -187,7 +173,7 @@ type
     fCRC32Value:  TCRC32Sys;
     fCRC32Table:  PCRC32Table;
     fProcessBuffer: procedure(const Buffer; Size: TMemSize) of object; register;
-    Function GetCRC32: TCRC32;
+    Function GetCRC32: TCRC32; virtual;
     Function GetCRC32Poly: TCRC32Sys; virtual;
     Function GetCRC32PolyRef: TCRC32Sys; virtual; abstract;
     Function GetHashImplementation: THashImplementation; override;
@@ -197,10 +183,10 @@ type
   {$ENDIF}
     procedure ProcessBuffer_PAS(const Buffer; Size: TMemSize); virtual; register;
     procedure ProcessBuffer(const Buffer; Size: TMemSize); override;
-    procedure Initialize; override;
-    procedure Finalize; override;
     procedure InitializeTable; virtual; abstract;
     procedure FinalizeTable; virtual; abstract;
+    procedure Initialize; override;
+    procedure Finalize; override;
   public
     class Function CRC32ToSys(CRC32: TCRC32): TCRC32Sys; virtual;
     class Function CRC32FromSys(CRC32: TCRC32Sys): TCRC32; virtual;
@@ -210,9 +196,9 @@ type
     class Function CRC32FromBE(CRC32: TCRC32): TCRC32; virtual;
     class Function HashSize: TMemSize; override;
     class Function HashEndianness: THashEndianness; override;
+    class Function HashFinalization: Boolean; override;
     constructor CreateAndInitFrom(Hash: THashBase); overload; override;
     constructor CreateAndInitFrom(Hash: TCRC32); overload; virtual;
-    procedure Init; override;
     Function Compare(Hash: THashBase): Integer; override;
     Function AsString: String; override;
     procedure FromString(const Str: String); override;
@@ -238,10 +224,13 @@ type
   TCRC32Hash = class(TCRC32BaseHash)
   protected
     Function GetCRC32PolyRef: TCRC32Sys; override;
+    procedure ProcessBuffer(const Buffer; Size: TMemSize); override;
     procedure InitializeTable; override;
     procedure FinalizeTable; override;
   public
     class Function HashName: String; override;
+    class Function HashFinalization: Boolean; override;
+    procedure Init; override;
   end;
 
 {-------------------------------------------------------------------------------
@@ -262,10 +251,13 @@ type
   {$IF not defined(PurePascal) and defined(CRC32C_Accelerated)}
     procedure ProcessBuffer_ACC(const Buffer; Size: TMemSize); virtual; register;
   {$IFEND}
+    procedure ProcessBuffer(const Buffer; Size: TMemSize); override;
     procedure InitializeTable; override;
     procedure FinalizeTable; override;
   public
     class Function HashName: String; override;
+    class Function HashFinalization: Boolean; override;
+    procedure Init; override;
   end;
 
 {-------------------------------------------------------------------------------
@@ -273,32 +265,257 @@ type
                                 TCRC32CustomHash
 ================================================================================
 -------------------------------------------------------------------------------}
+
+{$message 'rework'}  
+{
+  Polynomials for common CRC-32 implementations.
+
+  CRC32*_POLY are in original bit order with highest bit (1) omitted.
+
+  CRC32*_POLYREF are with reflected (reversed) bit order and highest bit omitted.
+
+  Full original polynomials are also provided for completeness.
+
+  Source: https://en.wikipedia.org/wiki/Cyclic_redundancy_check
+}
+const
+  CRC32_POLY:   TCRC32Sys = $04C11DB7;  CRC32_POLYREF:   TCRC32Sys = $EDB88320;   {0x104C11DB7}
+  CRC32C_POLY:  TCRC32Sys = $1EDC6F41;  CRC32C_POLYREF:  TCRC32Sys = $82F63B78;   {0x11EDC6F41}
+  CRC32Q_POLY:  TCRC32Sys = $814141AB;  CRC32Q_POLYREF:  TCRC32Sys = $D5828281;   {0x1814141AB}
+  CRC32K_POLY:  TCRC32Sys = $741B8CD7;  CRC32K_POLYREF:  TCRC32Sys = $EB31D82E;   {0x1741B8CD7}
+  CRC32K2_POLY: TCRC32Sys = $32583499;  CRC32K2_POLYREF: TCRC32Sys = $992C1A4C;   {0x132583499}
+
+{
+  LSB - least significant bit first
+  MSB - most significant bit first
+}
+
+type
+  TCRC32CustomPreset = record
+    Name:           String;           // name assigned to this CRC-32 within this library
+    Aliases:        String;           // name aliasses, separated by comma (,)
+    Polynomial:     TCRC32Sys;        // polynomial with highest bit omitted
+    RefPolynomial:  TCRC32Sys;        // polynomial with reflected bit order and highest bit omitted
+    FullPolynomial: UInt64;           // full polynomial (only lower 33bits are
+    InitialValue:   TCRC32;           // initial value of CRC register
+    ReflectIn:      Boolean;          // order in which bits are processed (false = LSB, true = MSB)
+    ReflectOut:     Boolean;          //
+    XOROutValue:    TCRC32;           // value XORed to the register after all processing is done
+    Check:          TCRC32;           // CRC-32 of UTF-8 encoded string "123456789" (without quotes)
+    Residue:        TCRC32;
+    Codewords:      String;
+  end;
+
+const
+  CRC32_KNOWN_PRESETS: array[0..10] of TCRC32CustomPreset = (
+   (Name:           'CRC-32/AIXM';
+    Aliases:        'CRC-32Q';
+    Polynomial:     $814141AB;
+    RefPolynomial:  $D5828281;
+    FullPolynomial: $1814141AB;
+    InitialValue:   ($00,$00,$00,$00);
+    ReflectIn:      False;
+    ReflectOut:     False;
+    XOROutValue:    ($00,$00,$00,$00);
+    Check:          ($7F,$BF,$10,$30);
+    Residue:        ($00,$00,$00,$00);
+    Codewords:      '3438303633374EA5A7C704,' +
+                    '3031363334313145A1AE5741,' +
+                    '3438303633374E3031363334313145A1BA30EE,' +
+                    '3738326C297100,' +
+                    '3438303633374E30313633343131453738326A259F4E,' +
+                    '34362E37266D25C1,' +
+                    '3438303633374E303136333431314534362E372F866D6D,' +
+                    '3438303633374E303136333431314537383234362E375E5DC940'),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/AUTOSAR';
+    Aliases:        '';
+    Polynomial:     $F4ACFB13;
+    RefPolynomial:  $C8DF352F;
+    FullPolynomial: $1F4ACFB13;
+    InitialValue:   ($FF,$FF,$FF,$FF);
+    ReflectIn:      True;
+    ReflectOut:     True;
+    XOROutValue:    ($FF,$FF,$FF,$FF);
+    Check:          ($6A,$D0,$97,$16);
+    Residue:        ($BF,$DD,$4C,$90);
+    Codewords:      '000000004022B36F,' +
+                    'F20183251A724F,' +
+                    '0FAA0055F82D6620,' +
+                    '00FF55116E99D79B,' +
+                    '332255AABBCCDDEEFF3D345AA6,' +
+                    '926B55788A68EE,' +
+                    'FFFFFFFFFFFFFFFF'),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/BASE91-D';
+    Aliases:        'CRC-32D';
+    Polynomial:     $A833982B;
+    RefPolynomial:  $D419CC15;
+    FullPolynomial: $1A833982B;
+    InitialValue:   ($FF,$FF,$FF,$FF);
+    ReflectIn:      True;
+    ReflectOut:     True;
+    XOROutValue:    ($FF,$FF,$FF,$FF);
+    Check:          ($76,$55,$31,$87);
+    Residue:        ($51,$05,$27,$45);
+    Codewords:      ''),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/BZIP2';
+    Aliases:        'CRC-32/AAL5, CRC-32/DECT-B, B-CRC-32';
+    Polynomial:     $04C11DB7;
+    RefPolynomial:  $EDB88320;
+    FullPolynomial: $104C11DB7;
+    InitialValue:   ($FF,$FF,$FF,$FF);
+    ReflectIn:      False;
+    ReflectOut:     False;
+    XOROutValue:    ($FF,$FF,$FF,$FF);
+    Check:          ($18,$19,$89,$FC);
+    Residue:        ($7B,$DD,$04,$C7);
+    Codewords:      '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000028864D7F99,' +
+                    'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000028C55E457A,' +
+                    '0102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20212223242526272800000028BF671ED0,' +
+                    '0102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20212223242526272811220028ACBA602A,' +
+                    '6173640A86FA4F5B'),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/CD-ROM-EDC';
+    Aliases:        '';
+    Polynomial:     $8001801B;
+    RefPolynomial:  $D8018001;
+    FullPolynomial: $18001801B;
+    InitialValue:   ($00,$00,$00,$00);
+    ReflectIn:      True;
+    ReflectOut:     True;
+    XOROutValue:    ($00,$00,$00,$00);
+    Check:          ($C4,$ED,$C2,$6E);
+    Residue:        ($00,$00,$00,$00);
+    Codewords:      ''),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/CKSUM';
+    Aliases:        'CKSUM, CRC-32/POSIX';
+    Polynomial:     $04C11DB7;
+    RefPolynomial:  $EDB88320;
+    FullPolynomial: $104C11DB7;
+    InitialValue:   ($00,$00,$00,$00);
+    ReflectIn:      False;
+    ReflectOut:     False;
+    XOROutValue:    ($FF,$FF,$FF,$FF);
+    Check:          ($80,$76,$5E,$76);
+    Residue:        ($7B,$DD,$04,$C7);
+    Codewords:      ''),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/ISCSI';
+    Aliases:        'CRC-32/BASE91-C, CRC-32/CASTAGNOLI, CRC-32/INTERLAKEN, CRC-32C';
+    Polynomial:     $1EDC6F41;
+    RefPolynomial:  $82F63B78;
+    FullPolynomial: $11EDC6F41;
+    InitialValue:   ($FF,$FF,$FF,$FF);
+    ReflectIn:      True;
+    ReflectOut:     True;
+    XOROutValue:    ($FF,$FF,$FF,$FF);
+    Check:          ($83,$92,$06,$E3);
+    Residue:        ($38,$B4,$98,$B7);
+    Codewords:      '0000000000000000000000000000000000000000000000000000000000000000AA36918A,' +
+                    'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF43ABA862,' +
+                    '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F4E79DD46'),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/ISO-HDLC';
+    Aliases:        'CRC-32, CRC-32/ADCCP, CRC-32/V-42, CRC-32/XZ, PKZIP';
+    Polynomial:     $04C11DB7;
+    RefPolynomial:  $EDB88320;
+    FullPolynomial: $104C11DB7;
+    InitialValue:   ($FF,$FF,$FF,$FF);
+    ReflectIn:      True;
+    ReflectOut:     True;
+    XOROutValue:    ($FF,$FF,$FF,$FF);
+    Check:          ($26,$39,$F4,$CB);
+    Residue:        ($E3,$20,$BB,$DE);
+    Codewords:      '000000001CDF4421,' +
+                    'F20183779DAB24,' +
+                    '0FAA005587B2C9B6,' +
+                    '00FF55111262A032,' +
+                    '332255AABBCCDDEEFF3D86AEB0,' +
+                    '926B559BA2DE9C,' +
+                    'FFFFFFFFFFFFFFFF,' +
+                    'C008300028CFE9521D3B08EA449900E808EA449900E8300102007E649416,' +
+                    '6173640ACEDE2D15'),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/JAMCRC';
+    Aliases:        'JAMCRC';
+    Polynomial:     $04C11DB7;
+    RefPolynomial:  $EDB88320;
+    FullPolynomial: $104C11DB7;
+    InitialValue:   ($FF,$FF,$FF,$FF);
+    ReflectIn:      True;
+    ReflectOut:     True;
+    XOROutValue:    ($00,$00,$00,$00);
+    Check:          ($D9,$C6,$0B,$34);
+    Residue:        ($00,$00,$00,$00);
+    Codewords:      ''),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/MPEG-2';
+    Aliases:        '';
+    Polynomial:     $04C11DB7;
+    RefPolynomial:  $EDB88320;
+    FullPolynomial: $104C11DB7;
+    InitialValue:   ($FF,$FF,$FF,$FF);
+    ReflectIn:      False;
+    ReflectOut:     False;
+    XOROutValue:    ($00,$00,$00,$00);
+    Check:          ($E7,$E6,$76,$03);
+    Residue:        ($00,$00,$00,$00);
+    Codewords:      ''),
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   (Name:           'CRC-32/XFER';
+    Aliases:        'XFER';
+    Polynomial:     $000000AF;
+    RefPolynomial:  $F5000000;
+    FullPolynomial: $1000000AF;
+    InitialValue:   ($00,$00,$00,$00);
+    ReflectIn:      False;
+    ReflectOut:     False;
+    XOROutValue:    ($00,$00,$00,$00);
+    Check:          ($38,$E3,$0B,$BD);
+    Residue:        ($00,$00,$00,$00);
+    Codewords:      ''));
+
+const
+  CRC32_DEFAULT_PRESET_IDX = 7;
+
 {===============================================================================
     TCRC32CustomHash - class declaration
 ===============================================================================}
 type
   TCRC32CustomHash = class(TCRC32BaseHash)
   protected
-    fCRC32Poly:     TCRC32Sys;
-    fCRC32Initial:  TCRC32;
-    fPreInversion:  Boolean;
-    fPostInversion: Boolean;
+    fCRC32Poly:     TCRC32Sys;  // actually reflected bit order
+    fInitialValue:  TCRC32;
+    fReflectIn:     Boolean;
+    fReflectOut:    Boolean;
+    fXOROutValue:   TCRC32;
     procedure SetCRC32Poly(Value: TCRC32Sys); virtual;
     Function GetCRC32PolyRef: TCRC32Sys; override;
     procedure SetCRC32PolyRef(Value: TCRC32Sys); virtual;
     procedure ProcessBuffer(const Buffer; Size: TMemSize); override;
     procedure BuildTable; virtual;
-    procedure Initialize; override;
     procedure InitializeTable; override;
     procedure FinalizeTable; override;
+    procedure Initialize; override;
   public
     class Function HashName: String; override;
+    constructor CreateAndInitFrom(Hash: THashBase); override;
+    constructor CreateAndLoadPreset(Preset: TCRC32CustomPreset); overload;
+    constructor CreateAndLoadPreset(const PresetName: String); overload;
+    procedure LoadPreset(Preset: TCRC32CustomPreset); overload; virtual;
+    procedure LoadPreset(const PresetName: String); overload; virtual;
+    Function SelfTest(Preset: TCRC32CustomPreset): Boolean; virtual;
     procedure Init; override;
+    procedure Final; override;
     property CRC32Poly: TCRC32Sys read GetCRC32Poly write SetCRC32Poly;
     property CRC32PolyRef: TCRC32Sys read GetCRC32PolyRef write SetCRC32PolyRef;
-    property CRC32InitialValue: TCRC32 read fCRC32Initial write fCRC32Initial;
-    property PreInversion: Boolean read fPreInversion write fPreInversion;
-    property PostInversion: Boolean read fPostInversion write fPostInversion;
+    property InitialValue: TCRC32 read fInitialValue write fInitialValue;
+    property ReflectIn: Boolean read fReflectIn write fReflectIn;
+    property ReflectOut: Boolean read fReflectOut write fReflectOut;
+    property XOROutValue: TCRC32 read fXOROutValue write fXOROutValue;
   end;
 
 {===============================================================================
@@ -344,7 +561,7 @@ Function CRC32_Hash(const Buffer; Size: TMemSize): TCRC32;
 implementation
 
 uses
-  SysUtils
+  SysUtils, StrUtils, bitops
 {$IF not defined(PurePascal) and defined(CRC32C_Accelerated)}
   , SimpleCPUID
 {$IFEND};
@@ -405,6 +622,32 @@ begin
 Result := 0;
 For i := 0 to 31 do
   Result := Result or (((Value shr i) and 1) shl (31 - i));
+end;
+
+//------------------------------------------------------------------------------
+
+procedure SplitString(const Str: String; Parts: TStrings);
+var
+  i:      Integer;
+  Start:  Integer;
+  Len:    Integer;
+begin
+Parts.Clear;
+If Length(Str) > 0 then
+  begin
+    Start := 1;
+    Len := 0;
+    For i := 1 to Length(Str) do
+      If Str[i] = ',' then
+        begin
+          Parts.Add(Trim(Copy(Str,Start,Len)));
+          Start := Succ(i);
+          Len := 0;
+        end
+      else Inc(Len);
+    If Len > 0 then
+      Parts.Add(Trim(Copy(Str,Start,Len)));
+  end;
 end;
 
 {===============================================================================
@@ -612,9 +855,7 @@ end;
 
 procedure TCRC32BaseHash.ProcessBuffer(const Buffer; Size: TMemSize);
 begin
-fCRC32Value := not fCRC32Value;
 fProcessBuffer(Buffer,Size);
-fCRC32Value := not fCRC32Value;
 end;
 
 //------------------------------------------------------------------------------
@@ -695,13 +936,20 @@ end;
 
 //------------------------------------------------------------------------------
 
+class Function TCRC32BaseHash.HashFinalization: Boolean;
+begin
+Result := True;
+end;
+
+//------------------------------------------------------------------------------
+
 constructor TCRC32BaseHash.CreateAndInitFrom(Hash: THashBase);
 begin
 inherited CreateAndInitFrom(Hash);
 If Hash is TCRC32Hash then
   fCRC32Value := TCRC32Hash(Hash).CRC32Sys
 else
-  raise ECRC32IncompatibleClass.CreateFmt('TCRC32Hash.CreateAndInitFrom: Incompatible class (%s).',[Hash.ClassName]);
+  raise ECRC32IncompatibleClass.CreateFmt('TCRC32BaseHash.CreateAndInitFrom: Incompatible class (%s).',[Hash.ClassName]);
 end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -714,26 +962,18 @@ end;
 
 //------------------------------------------------------------------------------
 
-procedure TCRC32BaseHash.Init;
-begin
-inherited;
-fCRC32Value := CRC32ToSys(InitialCRC32);
-end;
-
-//------------------------------------------------------------------------------
-
 Function TCRC32BaseHash.Compare(Hash: THashBase): Integer;
 begin
-If Hash is TCRC32Hash then
+If Hash is TCRC32BaseHash then
   begin
-    If fCRC32Value > TCRC32Hash(Hash).CRC32Sys then
+    If fCRC32Value > TCRC32BaseHash(Hash).CRC32Sys then
       Result := +1
-    else If fCRC32Value < TCRC32Hash(Hash).CRC32Sys then
+    else If fCRC32Value < TCRC32BaseHash(Hash).CRC32Sys then
       Result := -1
     else
       Result := 0;
   end
-else raise ECRC32IncompatibleClass.CreateFmt('TCRC32Hash.Compare: Incompatible class (%s).',[Hash.ClassName]);
+else raise ECRC32IncompatibleClass.CreateFmt('TCRC32BaseHash.Compare: Incompatible class (%s).',[Hash.ClassName]);
 end;
 
 //------------------------------------------------------------------------------
@@ -860,6 +1100,15 @@ end;
 
 //------------------------------------------------------------------------------
 
+procedure TCRC32Hash.ProcessBuffer(const Buffer; Size: TMemSize);
+begin
+fCRC32Value := not fCRC32Value;
+inherited ProcessBuffer(Buffer,Size);
+fCRC32Value := not fCRC32Value;
+end;
+
+//------------------------------------------------------------------------------
+
 procedure TCRC32Hash.InitializeTable;
 begin
 fCRC32Table := @CRC32_TABLE;
@@ -879,6 +1128,21 @@ end;
 class Function TCRC32Hash.HashName: String;
 begin
 Result := 'CRC-32';
+end;
+
+//------------------------------------------------------------------------------
+
+class Function TCRC32Hash.HashFinalization: Boolean;
+begin
+Result := False;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TCRC32Hash.Init;
+begin
+inherited;
+fCRC32Value := CRC32ToSys(InitialCRC32);
 end;
 
 {-------------------------------------------------------------------------------
@@ -1188,6 +1452,15 @@ end;
 
 //------------------------------------------------------------------------------
 
+procedure TCRC32CHash.ProcessBuffer(const Buffer; Size: TMemSize);
+begin
+fCRC32Value := not fCRC32Value;
+inherited ProcessBuffer(Buffer,Size);
+fCRC32Value := not fCRC32Value;
+end;
+
+//------------------------------------------------------------------------------
+
 procedure TCRC32CHash.InitializeTable;
 begin
 fCRC32Table := @CRC32C_TABLE;
@@ -1207,6 +1480,21 @@ end;
 class Function TCRC32CHash.HashName: String;
 begin
 Result := 'CRC-32C';
+end;
+
+//------------------------------------------------------------------------------
+
+class Function TCRC32CHash.HashFinalization: Boolean;
+begin
+Result := False;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TCRC32CHash.Init;
+begin
+inherited;
+fCRC32Value := CRC32ToSys(InitialCRC32);
 end;
 
 {-------------------------------------------------------------------------------
@@ -1247,12 +1535,20 @@ end;
 //------------------------------------------------------------------------------
 
 procedure TCRC32CustomHash.ProcessBuffer(const Buffer; Size: TMemSize);
+var
+  i:    TMemSize;
+  Buff: PByte;
 begin
-If fPreInversion then
-  fCRC32Value := not fCRC32Value;
-fProcessBuffer(Buffer,Size);
-If fPostInversion then
-  fCRC32Value := not fCRC32Value;
+Buff := @Buffer;
+For i := 1 to Size do
+  begin
+    //If fReflectIn then
+      fCRC32Value := fCRC32Table^[Byte(fCRC32Value xor TCRC32Sys(Buff^))] xor (fCRC32Value shr 8);
+    //else
+    //  fCRC32Value := fCRC32Table^[Byte(fCRC32Value xor TCRC32Sys(bitops.ReverseBits(Buff^)))] xor (fCRC32Value shr 8);
+    Inc(Buff);
+  end;
+{$message 'optimize'}  
 end;
 
 //------------------------------------------------------------------------------
@@ -1280,11 +1576,12 @@ end;
 
 procedure TCRC32CustomHash.Initialize;
 begin
-fCRC32Poly := CRC32_POLYREF;
+fCRC32Poly := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].RefPolynomial;
 inherited;  // calls InitializeTable, so polynomial must be set before it
-fCRC32Initial := InitialCRC32;
-fPreInversion := True;
-fPostInversion := True;
+fInitialValue := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].InitialValue;
+fReflectIn := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].ReflectIn;
+fReflectOut := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].ReflectOut;
+fXOROutValue := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].XOROutValue;
 end;
 
 //------------------------------------------------------------------------------
@@ -1313,10 +1610,186 @@ end;
 
 //------------------------------------------------------------------------------
 
+constructor TCRC32CustomHash.CreateAndInitFrom(Hash: THashBase);
+begin
+inherited CreateAndInitFrom(Hash);
+If Hash is TCRC32CustomHash then
+  begin
+    fCRC32Poly := TCRC32CustomHash(Hash).CRC32PolyRef;
+    fInitialValue := TCRC32CustomHash(Hash).InitialValue;
+    fReflectIn := TCRC32CustomHash(Hash).ReflectIn;
+    fReflectOut := TCRC32CustomHash(Hash).ReflectOut;
+    fXOROutValue := TCRC32CustomHash(Hash).XOROutValue;
+    BuildTable;
+  end
+else raise ECRC32IncompatibleClass.CreateFmt('TCRC32CustomHash.CreateAndInitFrom: Incompatible class (%s).',[Hash.ClassName]);
+end;
+
+//------------------------------------------------------------------------------
+
+constructor TCRC32CustomHash.CreateAndLoadPreset(Preset: TCRC32CustomPreset);
+begin
+Create;
+LoadPreset(Preset);
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+constructor TCRC32CustomHash.CreateAndLoadPreset(const PresetName: String);
+begin
+Create;
+LoadPreset(PresetName);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TCRC32CustomHash.LoadPreset(Preset: TCRC32CustomPreset);
+begin
+fCRC32Poly := Preset.RefPolynomial;
+fInitialValue := Preset.InitialValue;
+fReflectIn := Preset.ReflectIn;
+fReflectOut := Preset.ReflectOut;
+fXOROutValue := Preset.XOROutValue;
+BuildTable;
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+procedure TCRC32CustomHash.LoadPreset(const PresetName: String);
+var
+  Aliases:  TStringList;
+  i:        Integer;
+  Index:    Integer;
+begin
+Aliases := TStringList.Create;
+try
+  For i := Low(CRC32_KNOWN_PRESETS) to High(CRC32_KNOWN_PRESETS) do
+    begin
+      If not AnsiSameText(CRC32_KNOWN_PRESETS[i].Name,PresetName) then
+        begin
+          SplitString(CRC32_KNOWN_PRESETS[i].Aliases,Aliases);
+          Index := Aliases.IndexOf(PresetName);
+        end
+      else Index := i;
+      If Index >= 0 then
+        Break{For i};
+    end;
+  If Index >= 0 then
+    LoadPreset(CRC32_KNOWN_PRESETS[Index]);
+finally
+  Aliases.Free;
+end;
+end;
+
+//------------------------------------------------------------------------------
+
+Function TCRC32CustomHash.SelfTest(Preset: TCRC32CustomPreset): Boolean;
+type
+  TByteArray = packed array of Byte;
+var
+  Codewords:  TStringList;
+  i:          Integer;
+  cwCRC:      TCRC32;
+  cwData:     TByteArray;
+
+  Function CheckCRC(CRC32: TCRC32): Boolean;
+  var
+    TempObj:  TCRC32CustomHash;
+  begin
+    TempObj := TCRC32CustomHash.CreateAndInitFrom(CRC32);
+    try
+      Result := Same(TempObj);
+    finally
+      TempObj.Free;
+    end;
+  end;
+
+  procedure CodewordSplit(const Codeword: String; out CRC: TCRC32; out Data: TByteArray);
+  var
+    TempObj:  TCRC32CustomHash;
+    ii:       Integer;
+  begin
+    // get crc
+    TempObj := TCRC32CustomHash.CreateAndInitFromString(Copy(Codeword,Length(CodeWord) - 7,8));
+    try
+      If fReflectOut then
+        CRC := SwapEndian(TempObj.CRC32)
+      else
+        CRC := TempObj.CRC32;
+    finally
+      TempObj.Free;
+    end;
+    // get data
+    SetLength(Data,(Length(CodeWord) - 8) div 2);
+    For ii := Low(Data) to High(Data) do
+      Data[ii] := StrToInt('$' + Copy(CodeWord,(ii * 2) + 1,2));
+  end;
+
+begin
+LoadPreset(Preset);
+HashAnsiString('123456789'); 
+If CheckCRC(Preset.Check) then
+  begin
+    Codewords := TStringList.Create;
+    try
+      Result := True;
+      SplitString(Preset.Codewords,Codewords);
+      // check codewords for crc
+      For i := 0 to Pred(Codewords.Count) do
+        begin
+          CodewordSplit(Codewords[i],cwCRC,cwData);
+          If Length(cwData) > 0 then
+            begin
+              HashMemory(Addr(cwData[0]),Length(cwData));
+              If not CheckCRC(cwCRC) then
+                begin
+                  Result := False;
+                  Break{For i};
+                end;
+            end;
+        end;
+      // check codewords for residue
+      For i := 0 to Pred(Codewords.Count) do
+        begin
+          CodewordSplit(Codewords[i] + '00000000',cwCRC,cwData);
+          If Length(cwData) > 0 then
+            begin
+              HashMemory(Addr(cwData[0]),Length(cwData));
+              fCRC32Value := fCRC32Value xor CRC32ToSys(fXOROutValue);
+              If not CheckCRC(Preset.Residue) then
+                begin
+                  Result := False;
+                  Break{For i};
+                end;                
+            end;
+        end;
+    finally
+      Codewords.Free;
+    end;
+  end
+else
+  begin
+    Result := False;
+    WriteLn(AsString);
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
 procedure TCRC32CustomHash.Init;
 begin
 inherited;
-fCRC32Value := CRC32ToSys(fCRC32Initial);
+fCRC32Value := CRC32ToSys(fInitialValue);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TCRC32CustomHash.Final;
+begin
+inherited;
+If not fReflectIn then
+  fCRC32Value := ReverseBits(fCRC32Value);
+fCRC32Value := fCRC32Value xor CRC32ToSys(fXOROutValue);
 end;
 
 {===============================================================================
