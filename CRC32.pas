@@ -28,9 +28,9 @@
     functions that can be used. These functions are implemented above TCRC32Hash
     class and therefore are calculating CRC-32 with a polynomial of 0x104C11DB7.
 
-  Version 1.7 alpha (2020-07-18)
+  Version 1.7.1 alpha (2020-07-19)
 
-  Last change 2020-07-18
+  Last change 2020-07-19
 
   ©2011-2020 František Milt
 
@@ -1742,7 +1742,10 @@ try
         end
       else Index := i;
       If Index >= 0 then
-        Break{For i};
+        begin
+          Index := i;
+          Break{For i};
+        end;
     end;
   If Index >= 0 then
     LoadPreset(CRC32_KNOWN_PRESETS[Index]);
