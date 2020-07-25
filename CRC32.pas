@@ -28,9 +28,9 @@
     functions that can be used. These functions are implemented above TCRC32Hash
     class and therefore are calculating CRC-32 with a polynomial of 0x104C11DB7.
 
-  Version 1.7.1 alpha (2020-07-19)
+  Version 1.7.1 (2020-07-25)
 
-  Last change 2020-07-19
+  Last change 2020-07-25
 
   ©2011-2020 František Milt
 
@@ -275,18 +275,18 @@ type
 }
 type
   TCRC32CustomPreset = record
-    Name:           String;           // name assigned to this CRC-32 within this library
-    Aliases:        String;           // name aliasses, separated by comma (,)
-    Polynomial:     TCRC32Sys;        // polynomial with highest bit omitted
-    RefPolynomial:  TCRC32Sys;        // polynomial with reflected bit order and original highest bit omitted
-    FullPolynomial: UInt64;           // full polynomial (only lower 33bits are to be observed)
-    InitialValue:   TCRC32;           // initial value of CRC register
-    ReflectIn:      Boolean;          // order in which bits are processed (false = LSB, true = MSB)
-    ReflectOut:     Boolean;          // byte-swapping of resulting CRC-32 value before presentation (has effect only in SelfTest)
-    XOROutValue:    TCRC32;           // value XORed to the register after all processing is done
-    Check:          TCRC32;           // CRC-32 of UTF-8 encoded string "123456789" (without quotes)
-    Residue:        TCRC32;           // what is left in CRC-32 register (before final xor) after hashing of error-free data with appended CRC-32 value
-    Codewords:      String;           // datastream-crc pairs (binary, hexadecimal notation), separated by comma (,)
+    Name:           String;       // name assigned to this CRC-32 within this library
+    Aliases:        String;       // name aliasses, separated by comma (,)
+    Polynomial:     TCRC32Sys;    // polynomial with highest bit omitted
+    RefPolynomial:  TCRC32Sys;    // polynomial with reflected bit order and original highest bit omitted
+    FullPolynomial: UInt64;       // full polynomial (only lower 33bits are to be observed)
+    InitialValue:   TCRC32;       // initial value of CRC register
+    ReflectIn:      Boolean;      // order in which bits are processed (false = LSB, true = MSB)
+    ReflectOut:     Boolean;      // byte-swapping of resulting CRC-32 value before presentation (affects only textual representation)
+    XOROutValue:    TCRC32;       // value XORed to the register after all processing is done
+    Check:          TCRC32;       // CRC-32 of UTF-8 encoded string "123456789" (without quotes)
+    Residue:        TCRC32;       // what is left in CRC-32 register (before final xor) after hashing of error-free data with appended CRC-32 value
+    Codewords:      String;       // datastream-crc pairs (binary, hexadecimal notation), separated by comma (,)
   end;
 
 const
@@ -481,7 +481,6 @@ type
     procedure SetCRC32PolyRef(Value: TCRC32Sys); virtual;
     procedure SetInitialValue(Value: TCRC32); virtual;
     procedure SetReflectIn(Value: Boolean); virtual;
-    procedure ProcessBuffer(const Buffer; Size: TMemSize); override;
     procedure BuildTable; virtual;
     procedure InitializeTable; override;
     procedure FinalizeTable; override;
@@ -499,6 +498,8 @@ type
     Function SelfTest(Preset: TCRC32CustomPreset): Boolean; virtual;
     procedure Init; override;
     procedure Final; override;
+    Function AsString: String; override;
+    procedure FromString(const Str: String); override;
     property CRC32Poly: TCRC32Sys read GetCRC32Poly write SetCRC32Poly;
     property CRC32PolyRef: TCRC32Sys read GetCRC32PolyRef write SetCRC32PolyRef;
     property InitialValue: TCRC32 read fInitialValue write SetInitialValue;
@@ -604,13 +605,51 @@ end;
 
 //------------------------------------------------------------------------------
 
-Function ReverseBits(Value: TCRC32Sys): TCRC32Sys;
-var
-  i:  Integer;
+Function ReflectBits(Value: UInt8): UInt8; overload;
+const
+  RevBitsTable: array[UInt8] of UInt8 = (
+    $00, $80, $40, $C0, $20, $A0, $60, $E0, $10, $90, $50, $D0, $30, $B0, $70, $F0,
+    $08, $88, $48, $C8, $28, $A8, $68, $E8, $18, $98, $58, $D8, $38, $B8, $78, $F8,
+    $04, $84, $44, $C4, $24, $A4, $64, $E4, $14, $94, $54, $D4, $34, $B4, $74, $F4,
+    $0C, $8C, $4C, $CC, $2C, $AC, $6C, $EC, $1C, $9C, $5C, $DC, $3C, $BC, $7C, $FC,
+    $02, $82, $42, $C2, $22, $A2, $62, $E2, $12, $92, $52, $D2, $32, $B2, $72, $F2,
+    $0A, $8A, $4A, $CA, $2A, $AA, $6A, $EA, $1A, $9A, $5A, $DA, $3A, $BA, $7A, $FA,
+    $06, $86, $46, $C6, $26, $A6, $66, $E6, $16, $96, $56, $D6, $36, $B6, $76, $F6,
+    $0E, $8E, $4E, $CE, $2E, $AE, $6E, $EE, $1E, $9E, $5E, $DE, $3E, $BE, $7E, $FE,
+    $01, $81, $41, $C1, $21, $A1, $61, $E1, $11, $91, $51, $D1, $31, $B1, $71, $F1,
+    $09, $89, $49, $C9, $29, $A9, $69, $E9, $19, $99, $59, $D9, $39, $B9, $79, $F9,
+    $05, $85, $45, $C5, $25, $A5, $65, $E5, $15, $95, $55, $D5, $35, $B5, $75, $F5,
+    $0D, $8D, $4D, $CD, $2D, $AD, $6D, $ED, $1D, $9D, $5D, $DD, $3D, $BD, $7D, $FD,
+    $03, $83, $43, $C3, $23, $A3, $63, $E3, $13, $93, $53, $D3, $33, $B3, $73, $F3,
+    $0B, $8B, $4B, $CB, $2B, $AB, $6B, $EB, $1B, $9B, $5B, $DB, $3B, $BB, $7B, $FB,
+    $07, $87, $47, $C7, $27, $A7, $67, $E7, $17, $97, $57, $D7, $37, $B7, $77, $F7,
+    $0F, $8F, $4F, $CF, $2F, $AF, $6F, $EF, $1F, $9F, $5F, $DF, $3F, $BF, $7F, $FF);
 begin
-Result := 0;
-For i := 0 to 31 do
-  Result := Result or (((Value shr i) and 1) shl (31 - i));
+Result := RevBitsTable[Value];
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Function ReflectBits(Value: TCRC32Sys): TCRC32Sys; overload;
+type
+  TByteOverlay = packed array[0..3] of UInt8;
+begin
+TByteOverlay(Result)[3] := ReflectBits(TByteOverlay(Value)[0]);
+TByteOverlay(Result)[2] := ReflectBits(TByteOverlay(Value)[1]);
+TByteOverlay(Result)[1] := ReflectBits(TByteOverlay(Value)[2]);
+TByteOverlay(Result)[0] := ReflectBits(TByteOverlay(Value)[3]);
+end;
+
+//------------------------------------------------------------------------------
+
+Function ReflectByteBits(Value: TCRC32Sys): TCRC32Sys; overload;
+type
+  TByteOverlay = packed array[0..3] of UInt8;
+begin
+TByteOverlay(Result)[0] := ReflectBits(TByteOverlay(Value)[0]);
+TByteOverlay(Result)[1] := ReflectBits(TByteOverlay(Value)[1]);
+TByteOverlay(Result)[2] := ReflectBits(TByteOverlay(Value)[2]);
+TByteOverlay(Result)[3] := ReflectBits(TByteOverlay(Value)[3]);
 end;
 
 //------------------------------------------------------------------------------
@@ -655,7 +694,7 @@ end;
 
 Function TCRC32BaseHash.GetCRC32Poly: TCRC32Sys;
 begin
-Result := ReverseBits(GetCRC32PolyRef);
+Result := ReflectBits(GetCRC32PolyRef);
 end;
 
 //------------------------------------------------------------------------------
@@ -892,7 +931,7 @@ end;
 
 class Function TCRC32BaseHash.CRC32ToBE(CRC32: TCRC32): TCRC32;
 begin
-Result := TCRC32(SwapEndian(TCRC32Sys(CRC32)));
+Result := SwapEndian(CRC32);
 end;
 
 //------------------------------------------------------------------------------
@@ -906,7 +945,7 @@ end;
 
 class Function TCRC32BaseHash.CRC32FromBE(CRC32: TCRC32): TCRC32;
 begin
-Result := TCRC32(SwapEndian(TCRC32Sys(CRC32)));
+Result := SwapEndian(CRC32);
 end;
 
 //------------------------------------------------------------------------------
@@ -1031,6 +1070,7 @@ end;
 end;
 {$IFDEF FPCDWM}{$POP}{$ENDIF}
 
+
 {-------------------------------------------------------------------------------
 ================================================================================
                                    TCRC32Hash
@@ -1135,6 +1175,7 @@ begin
 inherited;
 fCRC32Value := CRC32ToSys(InitialCRC32);
 end;
+
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -1490,6 +1531,7 @@ inherited;
 fCRC32Value := CRC32ToSys(InitialCRC32);
 end;
 
+
 {-------------------------------------------------------------------------------
 ================================================================================
                                 TCRC32CustomHash
@@ -1504,7 +1546,7 @@ end;
 
 procedure TCRC32CustomHash.SetCRC32Poly(Value: TCRC32Sys);
 begin
-SetCRC32PolyRef(ReverseBits(Value));
+SetCRC32PolyRef(ReflectBits(Value));
 end;
 
 //------------------------------------------------------------------------------
@@ -1547,51 +1589,10 @@ begin
 If Value <> fReflectIn then
   begin
     fReflectIn := Value;
+    BuildTable;
     If fInitialized and not fFinalized then
       fInitialized := False;    
   end;
-end;
-
-//------------------------------------------------------------------------------
-
-procedure TCRC32CustomHash.ProcessBuffer(const Buffer; Size: TMemSize);
-const
-  RevBitsTable: array[UInt8] of UInt8 = (
-    $00, $80, $40, $C0, $20, $A0, $60, $E0, $10, $90, $50, $D0, $30, $B0, $70, $F0,
-    $08, $88, $48, $C8, $28, $A8, $68, $E8, $18, $98, $58, $D8, $38, $B8, $78, $F8,
-    $04, $84, $44, $C4, $24, $A4, $64, $E4, $14, $94, $54, $D4, $34, $B4, $74, $F4,
-    $0C, $8C, $4C, $CC, $2C, $AC, $6C, $EC, $1C, $9C, $5C, $DC, $3C, $BC, $7C, $FC,
-    $02, $82, $42, $C2, $22, $A2, $62, $E2, $12, $92, $52, $D2, $32, $B2, $72, $F2,
-    $0A, $8A, $4A, $CA, $2A, $AA, $6A, $EA, $1A, $9A, $5A, $DA, $3A, $BA, $7A, $FA,
-    $06, $86, $46, $C6, $26, $A6, $66, $E6, $16, $96, $56, $D6, $36, $B6, $76, $F6,
-    $0E, $8E, $4E, $CE, $2E, $AE, $6E, $EE, $1E, $9E, $5E, $DE, $3E, $BE, $7E, $FE,
-    $01, $81, $41, $C1, $21, $A1, $61, $E1, $11, $91, $51, $D1, $31, $B1, $71, $F1,
-    $09, $89, $49, $C9, $29, $A9, $69, $E9, $19, $99, $59, $D9, $39, $B9, $79, $F9,
-    $05, $85, $45, $C5, $25, $A5, $65, $E5, $15, $95, $55, $D5, $35, $B5, $75, $F5,
-    $0D, $8D, $4D, $CD, $2D, $AD, $6D, $ED, $1D, $9D, $5D, $DD, $3D, $BD, $7D, $FD,
-    $03, $83, $43, $C3, $23, $A3, $63, $E3, $13, $93, $53, $D3, $33, $B3, $73, $F3,
-    $0B, $8B, $4B, $CB, $2B, $AB, $6B, $EB, $1B, $9B, $5B, $DB, $3B, $BB, $7B, $FB,
-    $07, $87, $47, $C7, $27, $A7, $67, $E7, $17, $97, $57, $D7, $37, $B7, $77, $F7,
-    $0F, $8F, $4F, $CF, $2F, $AF, $6F, $EF, $1F, $9F, $5F, $DF, $3F, $BF, $7F, $FF);
-var
-  InByte,RefByte: PUInt8;
-  i:              TMemSize;
-begin
-If not fReflectIn then
-  begin
-    BufferRealloc(fReflectBuffer,Size,False);
-    InByte := PUInt8(@Buffer);
-    RefByte := PUInt8(BufferMemory(fReflectBuffer));
-    For i := 1 to Size do
-      begin
-        RefByte^ := RevBitsTable[InByte^];
-        Inc(InByte);
-        Inc(RefByte);
-      end;
-    inherited ProcessBuffer(BufferMemory(fReflectBuffer)^,Size);
-  end
-else inherited ProcessBuffer(Buffer,Size);
-{$message 'Can this be optimized by rearranging or altering crc table?'}
 end;
 
 //------------------------------------------------------------------------------
@@ -1603,7 +1604,10 @@ var
 begin
 For i := Low(TCRC32Table) to High(TCRC32Table) do
   begin
-    Temp := TCRC32Sys(i) shl 1;
+    If fReflectIn then
+      Temp := TCRC32Sys(i) shl 1
+    else
+      Temp := TCRC32Sys(ReflectBits(UInt8(i))) shl 1;
     For j := 8 downto 0 do
       begin
         If (Temp and 1) <> 0 then
@@ -1611,7 +1615,10 @@ For i := Low(TCRC32Table) to High(TCRC32Table) do
         else
           Temp := Temp shr 1;
       end;
-    fCRC32Table^[Byte(i)] := Temp;
+    If fReflectIn then
+      fCRC32Table^[Byte(i)] := Temp
+    else
+      fCRC32Table^[Byte(i)] := ReflectByteBits(Temp);
   end;
 end;
 
@@ -1635,11 +1642,11 @@ end;
 procedure TCRC32CustomHash.Initialize;
 begin
 fCRC32Poly := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].RefPolynomial;
-inherited;  // calls InitializeTable, so polynomial must be set before it
 fInitialValue := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].InitialValue;
 fReflectIn := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].ReflectIn;
 fReflectOut := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].ReflectOut;
 fXOROutValue := CRC32_KNOWN_PRESETS[CRC32_DEFAULT_PRESET_IDX].XOROutValue;
+inherited;  // calls InitializeTable
 end;
 
 //------------------------------------------------------------------------------
@@ -1783,12 +1790,11 @@ var
     ii:       Integer;
   begin
     // get crc
-    TempObj := TCRC32CustomHash.CreateAndInitFromString(Copy(Codeword,Length(CodeWord) - 7,8));
+    TempObj := TCRC32CustomHash.Create;
     try
-      If fReflectOut then
-        CRC := SwapEndian(TempObj.CRC32)
-      else
-        CRC := TempObj.CRC32;
+      TempObj.ReflectOut := fReflectOut;
+      TempObj.FromString(Copy(Codeword,Length(CodeWord) - 7,8));
+      CRC := TempObj.CRC32;
     finally
       TempObj.Free;
     end;
@@ -1817,7 +1823,7 @@ If CheckCRC(Preset.Check) then
               If not CheckCRC(cwCRC) then
                 begin
                   Result := False;
-                  Break{For i};
+                  Exit;
                 end;
             end;
         end;
@@ -1832,7 +1838,7 @@ If CheckCRC(Preset.Check) then
               If not CheckCRC(Preset.Residue) then
                 begin
                   Result := False;
-                  Break{For i};
+                  Exit;
                 end;                
             end;
         end;
@@ -1840,11 +1846,7 @@ If CheckCRC(Preset.Check) then
       Codewords.Free;
     end;
   end
-else
-  begin
-    Result := False;
-    WriteLn(AsString);
-  end;
+else Result := False;
 end;
 
 //------------------------------------------------------------------------------
@@ -1852,7 +1854,10 @@ end;
 procedure TCRC32CustomHash.Init;
 begin
 inherited;
-fCRC32Value := CRC32ToSys(fInitialValue);
+If fReflectIn then
+  fCRC32Value := CRC32ToSys(fInitialValue)
+else
+  fCRC32Value := SwapEndian(CRC32ToSys(fInitialValue))
 end;
 
 //------------------------------------------------------------------------------
@@ -1860,9 +1865,29 @@ end;
 procedure TCRC32CustomHash.Final;
 begin
 inherited;
-If not fReflectIn then
-  fCRC32Value := ReverseBits(fCRC32Value);
-fCRC32Value := fCRC32Value xor CRC32ToSys(fXOROutValue);
+If fReflectIn then
+  fCRC32Value := fCRC32Value xor CRC32ToSys(fXOROutValue)
+else
+  fCRC32Value := SwapEndian(fCRC32Value) xor CRC32ToSys(fXOROutValue);
+end;
+
+//------------------------------------------------------------------------------
+
+Function TCRC32CustomHash.AsString: String;
+begin
+If fReflectOut then
+  Result := IntToHex(SwapEndian(fCRC32Value),8)
+else
+  Result := inherited AsString;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TCRC32CustomHash.FromString(const Str: String);
+begin
+inherited FromString(Str);
+If fReflectOut then
+  fCRC32Value := SwapEndian(fCRC32Value);
 end;
 
 {===============================================================================
