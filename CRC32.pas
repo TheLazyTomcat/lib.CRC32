@@ -30,7 +30,7 @@
 
   Version 1.7.1 (2020-07-25)
 
-  Last change 2020-07-25
+  Last change 2020-08-02
 
   ©2011-2020 František Milt
 
@@ -88,7 +88,7 @@ unit CRC32;
 {$IFEND}
 
 {$IFDEF FPC}
-  {$MODE ObjFPC}{$H+}{$MODESWITCH CLASSICPROCVARS+}
+  {$MODE ObjFPC}{$MODESWITCH CLASSICPROCVARS+}
   {$INLINE ON}
   {$DEFINE CanInline}
   {$DEFINE FPC_DisableWarns}
@@ -103,6 +103,7 @@ unit CRC32;
     {$UNDEF CanInline}
   {$IFEND}
 {$ENDIF}
+{$H+}
 
 {
   CRC32C_Accelerated
