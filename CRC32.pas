@@ -30,7 +30,7 @@
 
   Version 1.7.1 (2020-07-25)
 
-  Last change 2020-08-02
+  Last change 2020-09-08
 
   ©2011-2020 František Milt
 
@@ -54,7 +54,6 @@
     HashBase           - github.com/TheLazyTomcat/Lib.HashBase
     StrRect            - github.com/TheLazyTomcat/Lib.StrRect
     StaticMemoryStream - github.com/TheLazyTomcat/Lib.StaticMemoryStream
-    MemoryBuffer       - github.com/TheLazyTomcat/Lib.MemoryBuffer
   * SimpleCPUID        - github.com/TheLazyTomcat/Lib.SimpleCPUID
 
     SimpleCPUID is required only when neither PurePascal nor CRC32_PurePascal
@@ -120,7 +119,7 @@ interface
 
 uses
   Classes,
-  AuxTypes, MemoryBuffer, HashBase;
+  AuxTypes, HashBase;
 
 {===============================================================================
     Common types and constants
@@ -476,7 +475,6 @@ type
     fReflectIn:     Boolean;
     fReflectOut:    Boolean;
     fXOROutValue:   TCRC32;
-    fReflectBuffer: TMemoryBuffer;
     procedure SetCRC32Poly(Value: TCRC32Sys); virtual;
     Function GetCRC32PolyRef: TCRC32Sys; override;
     procedure SetCRC32PolyRef(Value: TCRC32Sys); virtual;
@@ -1655,7 +1653,6 @@ end;
 procedure TCRC32CustomHash.Finalize;
 begin
 inherited;
-BufferFree(fReflectBuffer);
 end;
 
 
