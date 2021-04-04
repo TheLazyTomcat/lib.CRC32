@@ -28,11 +28,11 @@
     functions that can be used. These functions are implemented above TCRC32Hash
     class and therefore are calculating CRC-32 with a polynomial of 0x104C11DB7.
 
-  Version 1.7.1 (2020-07-25)
+  Version 1.7.2 (2021-04-04)
 
-  Last change 2020-09-08
+  Last change 2021-04-04
 
-  ©2011-2020 František Milt
+  ©2011-2021 František Milt
 
   Contacts:
     František Milt: frantisek.milt@gmail.com
@@ -197,6 +197,8 @@ type
     class Function CRC32ToBE(CRC32: TCRC32): TCRC32; virtual;
     class Function CRC32FromLE(CRC32: TCRC32): TCRC32; virtual;
     class Function CRC32FromBE(CRC32: TCRC32): TCRC32; virtual;
+    class Function HashImplementationsAvailable: THashImplementations; override;
+    class Function HashImplementationsSupported: THashImplementations; override;
     class Function HashSize: TMemSize; override;
     class Function HashEndianness: THashEndianness; override;
     class Function HashFinalization: Boolean; override;
@@ -247,7 +249,7 @@ type
 type
   TCRC32CHash = class(TCRC32BaseHash)
   protected
-    Function AccelerationSupported: Boolean; virtual;
+    class Function AccelerationSupported: Boolean; virtual;
     Function GetCRC32PolyRef: TCRC32Sys; override;
     Function GetHashImplementation: THashImplementation; override;
     procedure SetHashImplementation(Value: THashImplementation); override;
@@ -258,6 +260,8 @@ type
     procedure InitializeTable; override;
     procedure FinalizeTable; override;
   public
+    class Function HashImplementationsAvailable: THashImplementations; override;
+    class Function HashImplementationsSupported: THashImplementations; override;
     class Function HashName: String; override;
     class Function HashFinalization: Boolean; override;
     procedure Init; override;
@@ -949,6 +953,20 @@ end;
 
 //------------------------------------------------------------------------------
 
+class Function TCRC32BaseHash.HashImplementationsAvailable: THashImplementations;
+begin
+Result := [hiPascal{$IFNDEF PurePascal},hiAssembly{$ENDIF}];
+end;
+
+//------------------------------------------------------------------------------
+
+class Function TCRC32BaseHash.HashImplementationsSupported: THashImplementations;
+begin
+Result := [hiPascal{$IFNDEF PurePascal},hiAssembly{$ENDIF}];
+end;
+
+//------------------------------------------------------------------------------
+
 class Function TCRC32BaseHash.HashSize: TMemSize;
 begin
 Result := SizeOf(TCRC32);
@@ -1229,7 +1247,7 @@ const
     TCRC32CHash - protected methods
 -------------------------------------------------------------------------------}
 
-Function TCRC32CHash.AccelerationSupported: Boolean;
+class Function TCRC32CHash.AccelerationSupported: Boolean;
 begin
 {$IF not defined(PurePascal) and defined(CRC32C_Accelerated)}
 with TSimpleCPUID.Create do
@@ -1509,6 +1527,33 @@ end;
 {-------------------------------------------------------------------------------
     TCRC32Hash - public methods
 -------------------------------------------------------------------------------}
+
+class Function TCRC32CHash.HashImplementationsAvailable: THashImplementations;
+begin
+{$IFNDEF PurePascal}
+Result := [hiPascal,hiAssembly{$IFDEF CRC32C_Accelerated},hiAccelerated{$ENDIF}]
+{$ELSE}
+Result := [hiPascal];
+{$ENDIF}
+end;
+
+//------------------------------------------------------------------------------
+
+class Function TCRC32CHash.HashImplementationsSupported: THashImplementations;
+begin
+{$IFNDEF PurePascal}
+{$IFDEF CRC32C_Accelerated}
+If AccelerationSupported then
+  Result := [hiPascal,hiAssembly,hiAccelerated]
+else
+{$ENDIF}
+  Result := [hiPascal,hiAssembly]
+{$ELSE}
+Result := [hiPascal];
+{$ENDIF}
+end;
+
+//------------------------------------------------------------------------------
 
 class Function TCRC32CHash.HashName: String;
 begin
