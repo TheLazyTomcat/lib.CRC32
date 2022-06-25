@@ -30,7 +30,7 @@
 
   Version 1.7.2 (2021-04-04)
 
-  Last change 2021-04-04
+  Last change 2022-06-25
 
   ©2011-2021 František Milt
 
@@ -112,8 +112,14 @@ unit CRC32;
   calculations via CRC32 instruction (part of SSE4.2 instruction set extension).
 
   Defined by default.
+
+  To disable/undefine this symbol in a project without changing this library,
+  define project-wide symbol CRC32_CRC32C_Accelerated_Off.
 }
 {$DEFINE CRC32C_Accelerated}
+{$IFDEF CRC32_CRC32C_Accelerated_Off}
+  {$UNDEF CRC32C_Accelerated}
+{$ENDIF}
 
 interface
 
