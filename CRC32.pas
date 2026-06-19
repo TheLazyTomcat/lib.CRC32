@@ -28,9 +28,9 @@
     functions that can be used. These functions are implemented above TCRC32Hash
     class and therefore are calculating CRC-32 with a polynomial of 0x104C11DB7.
 
-  Version 1.7.4 (2026-06-07)
+  Version 1.7.5 (2026-06-19)
 
-  Last change 2026-06-07
+  Last change 2026-06-16
 
   ©2011-2026 František Milt
 
@@ -1861,9 +1861,19 @@ procedure TCRC32CustomHash.Final;
 begin
 inherited;
 If fReflectIn then
-  fCRC32Value := fCRC32Value xor CRC32ToSys(fXOROutValue)
+  begin
+    If fReflectOut then
+      fCRC32Value := fCRC32Value xor CRC32ToSys(fXOROutValue)
+    else
+      fCRC32Value := ReflectBits(fCRC32Value) xor CRC32ToSys(fXOROutValue);
+  end
 else
-  fCRC32Value := SwapEndian(fCRC32Value) xor CRC32ToSys(fXOROutValue);
+  begin
+    If fReflectOut then
+      fCRC32Value := ReflectByteBits(fCRC32Value) xor CRC32ToSys(fXOROutValue)
+    else
+      fCRC32Value := SwapEndian(fCRC32Value) xor CRC32ToSys(fXOROutValue);
+  end;
 end;
 
 //------------------------------------------------------------------------------
