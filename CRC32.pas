@@ -30,7 +30,7 @@
 
   Version 1.7.5 (2026-06-19)
 
-  Last change 2026-06-16
+  Last change 2026-06-19
 
   ©2011-2026 František Milt
 
@@ -889,15 +889,22 @@ end;
 
 procedure TCRC32BaseHash.ProcessBuffer_PAS(const Buffer; Size: TMemSize);
 var
-  i:    TMemSize;
-  Buff: PByte;
+  WorkCRC:  TCRC32Sys;
+  i:        TMemSize;
+  Buff:     PByte;
 begin
+{
+  Make local copy of CRC and work on it - it should be faster than constantly
+  accessing object field.
+}
+WorkCRC := fCRC32Value;
 Buff := @Buffer;
 For i := 1 to Size do
   begin
-    fCRC32Value := fCRC32Table^[Byte(fCRC32Value) xor Buff^] xor (fCRC32Value shr 8);
+    WorkCRC := fCRC32Table^[Byte(WorkCRC) xor Buff^] xor (WorkCRC shr 8);
     Inc(Buff);
   end;
+fCRC32Value := WorkCRC;
 end;
 
 //------------------------------------------------------------------------------
@@ -1025,8 +1032,8 @@ end;
 constructor TCRC32BaseHash.CreateAndInitFrom(Hash: THashBase);
 begin
 inherited CreateAndInitFrom(Hash);
-If Hash is TCRC32Hash then
-  fCRC32Value := TCRC32Hash(Hash).CRC32Sys
+If Hash is TCRC32BaseHash then
+  fCRC32Value := TCRC32BaseHash(Hash).CRC32Sys
 else
   raise ECRC32IncompatibleClass.CreateFmt('TCRC32BaseHash.CreateAndInitFrom: Incompatible class (%s).',[Hash.ClassName]);
 end;
@@ -1073,7 +1080,7 @@ If Length(Str) > 0 then
     else
       fCRC32Value := TCRC32Sys(StrToInt('$' + Str));
   end
-else fCRC32Value := CRC32ToSys(InitialCRC32);
+else fCRC32Value := CRC32ToSys(ZeroCRC32);
 end;
 
 //------------------------------------------------------------------------------
