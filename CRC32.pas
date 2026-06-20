@@ -28,9 +28,9 @@
     functions that can be used. These functions are implemented above TCRC32Hash
     class and therefore are calculating CRC-32 with a polynomial of 0x104C11DB7.
 
-  Version 1.7.5 (2026-06-19)
+  Version 1.7.6 (2026-06-21)
 
-  Last change 2026-06-19
+  Last change 2026-06-21
 
   ©2011-2026 František Milt
 
@@ -135,8 +135,7 @@ uses
 
 {===============================================================================
     Common types and constants
-===============================================================================}
-
+===============================================================================}   
 {
   Bytes in TCRC32 are always ordered from least significant byte to most
   significant byte (little endian).
@@ -511,8 +510,6 @@ type
     Function SelfTest(Preset: TCRC32CustomPreset): Boolean; virtual;
     procedure Init; override;
     procedure Final; override;
-    Function AsString: String; override;
-    procedure FromString(const Str: String); override;
     property CRC32Poly: TCRC32Sys read GetCRC32Poly write SetCRC32Poly;
     property CRC32PolyRef: TCRC32Sys read GetCRC32PolyRef write SetCRC32PolyRef;
     property InitialValue: TCRC32 read fInitialValue write SetInitialValue;
@@ -1135,7 +1132,6 @@ end;
 {===============================================================================
     TCRC32Hash - calculation constants
 ===============================================================================}
-
 const
   CRC32_POLYREF: TCRC32Sys = $EDB88320;
 
@@ -1241,7 +1237,6 @@ end;
 {===============================================================================
     TCRC32CHash - calculation constants
 ===============================================================================}
-
 const
   CRC32C_POLYREF: TCRC32Sys = $82F63B78;
 
@@ -1658,7 +1653,6 @@ begin
 inherited;
 end;
 
-
 {-------------------------------------------------------------------------------
     TCRC32CustomHash - public methods
 -------------------------------------------------------------------------------}
@@ -1765,90 +1759,72 @@ end;
 //------------------------------------------------------------------------------
 
 Function TCRC32CustomHash.SelfTest(Preset: TCRC32CustomPreset): Boolean;
-type
-  TByteArray = packed array of Byte;
 var
+  CodewordData: array of Byte;
+  CodewordCRC:  TCRC32;
+
+  Function DecodeCodeword(const Str: String): Boolean;
+  var
+    i:  TStrOff;
+  begin
+    Result := False;
+    If Length(Str) >= (SizeOf(TCRC32) * 2) then
+      begin
+        CodewordData := nil;
+        SetLength(CodewordData,Length(Str) div 2);
+        For i := Low(CodewordData) to High(CodewordData) do
+          CodewordData[i] := StrToInt('$' + Copy(Str,(i * 2) + 1,2));
+        // following is in the byte order given by out-reflection (true = LSB, false = MSB)
+        CodewordCRC := PCRC32(Addr(CodewordData[High(CodewordData) - Pred(SizeOf(TCRC32))]))^;
+        If not fReflectOut then
+          CodewordCRC := SwapEndian(CodewordCRC);
+        Result := True;
+      end;
+  end;
+
+var
+  TempCRC:    TCRC32;
+  TempStr:    AnsiString;
   Codewords:  TStringList;
   i:          Integer;
-  cwCRC:      TCRC32;
-  cwData:     TByteArray;
-
-  Function CheckCRC(CRC32: TCRC32): Boolean;
-  var
-    TempObj:  TCRC32CustomHash;
-  begin
-    TempObj := TCRC32CustomHash.CreateAndInitFrom(CRC32);
-    try
-      Result := Same(TempObj);
-    finally
-      TempObj.Free;
-    end;
-  end;
-
-  procedure CodewordSplit(const Codeword: String; out CRC: TCRC32; out Data: TByteArray);
-  var
-    TempObj:  TCRC32CustomHash;
-    ii:       Integer;
-  begin
-    // get crc
-    TempObj := TCRC32CustomHash.Create;
-    try
-      TempObj.ReflectOut := fReflectOut;
-      TempObj.FromString(Copy(Codeword,Length(CodeWord) - 7,8));
-      CRC := TempObj.CRC32;
-    finally
-      TempObj.Free;
-    end;
-    // get data
-    Data := nil;
-    SetLength(Data,(Length(CodeWord) - 8) div 2);
-    For ii := Low(Data) to High(Data) do
-      Data[ii] := StrToInt('$' + Copy(CodeWord,(ii * 2) + 1,2));
-  end;
-
 begin
+Result := False;
 LoadPreset(Preset);
-HashAnsiString('123456789'); 
-If CheckCRC(Preset.Check) then
+HashAnsiString(AnsiString('123456789'));
+If CRC32ToSys(Preset.Check) = fCRC32Value then
   begin
-    Codewords := TStringList.Create;
-    try
-      Result := True;
-      SplitString(Preset.Codewords,Codewords);
-      // check codewords for crc
-      For i := 0 to Pred(Codewords.Count) do
-        begin
-          CodewordSplit(Codewords[i],cwCRC,cwData);
-          If Length(cwData) > 0 then
-            begin
-              HashMemory(Addr(cwData[0]),Length(cwData));
-              If not CheckCRC(cwCRC) then
-                begin
-                  Result := False;
+    // prepare check string with appended check CRC
+    If fReflectOut then
+      TempCRC := Preset.Check
+    else
+      TempCRC := SwapEndian(Preset.Check);
+    TempStr := '123456789' + StringOfChar('0',SizeOf(TCRC32));
+    Move(TempCRC,Addr(TempStr[10])^,SizeOf(TCRC32));
+    HashAnsiString(TempStr);
+    If CRC32ToSys(Preset.Residue) = (fCRC32Value xor CRC32ToSys(fXOROutValue)) then
+      begin
+        Codewords := TStringList.Create;
+        try
+          SplitString(Preset.Codewords,Codewords);
+          // check codewords for crc
+          For i := 0 to Pred(Codewords.Count) do
+            If DecodeCodeword(Codewords[i]) then
+              begin
+                // check crc
+                HashBuffer(CodewordData[0],Length(CodewordData) - SizeOf(TCRC32));
+                If CRC32ToSys(CodewordCRC) <> fCRC32Value then
                   Exit;
-                end;
-            end;
-        end;
-      // check codewords for residue
-      For i := 0 to Pred(Codewords.Count) do
-        begin
-          CodewordSplit(Codewords[i] + '00000000',cwCRC,cwData);
-          If Length(cwData) > 0 then
-            begin
-              HashMemory(Addr(cwData[0]),Length(cwData));
-              fCRC32Value := fCRC32Value xor CRC32ToSys(fXOROutValue);
-              If not CheckCRC(Preset.Residue) then
-                begin
-                  Result := False;
+                // check residue
+                HashMemory(Addr(CodewordData[0]),Length(CodewordData));
+                If CRC32ToSys(Preset.Residue) <> (fCRC32Value xor CRC32ToSys(fXOROutValue)) then
                   Exit;
-                end;                
-            end;
+              end;
+          Result := True;
+        finally
+          Codewords.Free;
         end;
-    finally
-      Codewords.Free;
-    end;
-  end
-else Result := False;
+      end;
+  end;
 end;
 
 //------------------------------------------------------------------------------
@@ -1857,7 +1833,7 @@ procedure TCRC32CustomHash.Init;
 begin
 inherited;
 If fReflectIn then
-  fCRC32Value := CRC32ToSys(fInitialValue)
+  fCRC32Value := ReflectBits(CRC32ToSys(fInitialValue))
 else
   fCRC32Value := SwapEndian(CRC32ToSys(fInitialValue))
 end;
@@ -1883,24 +1859,6 @@ else
   end;
 end;
 
-//------------------------------------------------------------------------------
-
-Function TCRC32CustomHash.AsString: String;
-begin
-If fReflectOut then
-  Result := IntToHex(SwapEndian(fCRC32Value),8)
-else
-  Result := inherited AsString;
-end;
-
-//------------------------------------------------------------------------------
-
-procedure TCRC32CustomHash.FromString(const Str: String);
-begin
-inherited FromString(Str);
-If fReflectOut then
-  fCRC32Value := SwapEndian(fCRC32Value);
-end;
 
 {===============================================================================
     Backward compatibility functions
