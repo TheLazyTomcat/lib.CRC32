@@ -30,7 +30,7 @@
 
   Version 1.7.6 (2026-06-21)
 
-  Last change 2026-06-21
+  Last change 2026-06-24
 
   ©2011-2026 František Milt
 
@@ -235,6 +235,15 @@ type
                                    TCRC32Hash
 ================================================================================
 -------------------------------------------------------------------------------}
+{
+  Hardcoded implementation of CRC-32/ISO-HDLC:
+
+                  polynomial        0x104C11DB7
+               initial value        0xFFFFFFFF
+             final xor value        0xFFFFFFFF
+       input bits reflection        True
+      output bits reflection        True
+}
 {===============================================================================
     TCRC32Hash - class declaration
 ===============================================================================}
@@ -256,6 +265,15 @@ type
                                    TCRC32CHash                                  
 ================================================================================
 -------------------------------------------------------------------------------}
+{
+  Hardcoded implementation of CRC-32/ISCSI:
+
+                  polynomial        0x11EDC6F41
+               initial value        0xFFFFFFFF
+             final xor value        0xFFFFFFFF
+       input bits reflection        True
+      output bits reflection        True
+}
 {===============================================================================
     TCRC32CHash - class declaration
 ===============================================================================}
