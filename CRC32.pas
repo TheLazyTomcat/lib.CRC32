@@ -28,9 +28,9 @@
     that you can use. These functions are calculating CRC-32 using the same
     parameters as class TCRC32Hash.
 
-  Version 1.8 (2026-07-03)
+  Version 1.8.1 (2026-07-04)
 
-  Last change 2026-07-03
+  Last change 2026-07-04
 
   ©2011-2026 František Milt
 
@@ -1890,7 +1890,7 @@ end;
 
 Function StrToCRC32Def(const Str: String; Default: TCRC32): TCRC32;
 begin
-If TryStrToCRC32(Str,Result) then
+If not TryStrToCRC32(Str,Result) then
   Result := Default;
 end;
 
